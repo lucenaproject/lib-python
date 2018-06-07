@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='lucena',
-    version='0.5',
+    version='0.5.1',
     description='Microservices library for Lucena Project',
     url='https://github.com/lucenaproject/lucena.py',
     author='Fernando Miranda',
