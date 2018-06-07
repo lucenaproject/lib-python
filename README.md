@@ -9,4 +9,3 @@
 
 
 The Python core library for building microservices in Lucena Project.
-
