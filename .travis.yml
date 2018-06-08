@@ -6,3 +6,6 @@ services:
 script:
   - docker build --tag lucena.py .
   - docker run lucena.py python -m unittest tests/*.py
+
+notifications:
+  on_success: never
