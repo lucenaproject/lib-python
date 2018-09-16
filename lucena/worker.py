@@ -47,7 +47,7 @@ class Worker(object):
 class MathWorker(Worker):
     def __init__(self):
         super(MathWorker, self).__init__()
-        self.bind_handler({'$req': 'sum', 'a': int, 'b': int}, self.sum)
+        self.bind_handler({'$req': 'sum'}, self.sum)
         self.bind_handler({'$req': 'multiply'}, self.multiply)
 
     @staticmethod
