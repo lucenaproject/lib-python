@@ -4,8 +4,8 @@ services:
   - docker
 
 script:
-  - docker build --tag lucena.py .
-  - docker run lucena.py python -m unittest tests/*.py
+  - docker build --tag lucena-lib-python .
+  - docker run lucena-lib-python python -m unittest tests/*.py
 
 notifications:
   on_success: never
