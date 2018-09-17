@@ -4,7 +4,9 @@ from lucena.message_handler import MessageHandler
 
 
 class Worker(object):
-    def __init__(self):
+    def __init__(self, name=None, service=None):
+        self.name = name
+        self.service = service
         self.message_handlers = []
         self.bind_handler({}, self.default_handler)
 
@@ -32,11 +34,12 @@ class Worker(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def plug(self, context, identity=None):
-        channel = WorkerChannel(context, identity)
+    def start(self):
+        assert self.service is not None
+        channel = WorkerChannel(self.service.context, self.name)
         while True:
             client, message = channel.recv()
-            print("{}: {}".format(identity, message))
+            print("{}: {}".format(self.name, message))
             if message == WorkerChannel.STOP_MESSAGE:
                 break
             response = self.resolve(message)

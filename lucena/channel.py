@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import threading
 
 import zmq
 
@@ -116,7 +115,7 @@ class ServiceWorkerChannel(Channel):
 
     def _plug_worker(self, worker_class, identity):
         worker = worker_class()
-        worker.plug(self.context, identity)
+        worker.start(self.context, identity)
 
     def send(self, worker, client, message):
         self.socket.send_multipart([
@@ -137,19 +136,13 @@ class ServiceWorkerChannel(Channel):
         message = json.loads(frames[4].decode('utf-8'))
         return worker, client, message
 
-    def plug_worker(self, worker_class):
-        worker_identity = "worker-{}".format(len(self.workers)).encode("utf-8")
-        thread = threading.Thread(
-            target=self._plug_worker,
-            args=(worker_class, worker_identity,)
-        )
-        thread.start()
-        worker, client, message = self.recv()
-        assert worker == worker_identity
+    def plug_worker_by_name(self, worker_name):
+        worker_zmq_id, client, message = self.recv()
+        assert worker_name is None or worker_zmq_id == worker_name
         assert client == Channel.VOID_FRAME
         assert message == Channel.READY_MESSAGE
-        self.workers.append(worker_identity)
-        return worker_identity
+        self.workers.append(worker_zmq_id)
+        return worker_zmq_id
 
 
 class ServiceClientChannel(Channel):
