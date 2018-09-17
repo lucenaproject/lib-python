@@ -103,7 +103,7 @@ class Service(object):
 def client_task(ident):
     """Basic request-reply client using REQ socket."""
     socket = zmq.Context().socket(zmq.REQ)
-    socket.identity = u"Client-{}".format(ident).encode("ascii")
+    socket.identity = u"client-{}".format(ident).encode("ascii")
     socket.connect("ipc://frontend.ipc")
 
     # Send request, get reply
@@ -123,12 +123,13 @@ def start(task, *args):
 
 
 def main2():
-    for i in range(10):
-        start(client_task, i)
     s = Service(worker_factory=Worker)
     s.start()
-    import time
-    time.sleep(1)
+    client_requests, i = 10, 0
+    while s.total_client_requests < client_requests:
+        if i < client_requests:
+            start(client_task, i)
+            i += 1
     s.stop()
 
 
