@@ -4,7 +4,6 @@ import threading
 import zmq
 
 from lucena.channel import ServiceClientChannel, ServiceWorkerChannel
-from lucena.worker import Worker
 
 
 class Service(object):
@@ -98,40 +97,3 @@ class Service(object):
         while self.pending_workers():
             pass
         print("Service STOP")
-
-
-def client_task(ident):
-    """Basic request-reply client using REQ socket."""
-    socket = zmq.Context().socket(zmq.REQ)
-    socket.identity = u"client-{}".format(ident).encode("ascii")
-    socket.connect("ipc://frontend.ipc")
-
-    # Send request, get reply
-    socket.send(b'{"$req": "HELLO"}')
-    reply = socket.recv()
-    print("{}: {}".format(
-        socket.identity.decode("ascii"),
-        reply.decode("ascii"))
-    )
-
-
-# Start background tasks
-def start(task, *args):
-    import multiprocessing
-    process = multiprocessing.Process(target=task, args=args)
-    process.start()
-
-
-def main2():
-    s = Service(worker_factory=Worker)
-    s.start()
-    client_requests, i = 10, 0
-    while s.total_client_requests < client_requests:
-        if i < client_requests:
-            start(client_task, i)
-            i += 1
-    s.stop()
-
-
-if __name__ == '__main__':
-    main2()

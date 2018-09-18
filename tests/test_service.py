@@ -1,0 +1,36 @@
+# -*- coding: utf-8 -*-
+import unittest
+
+import zmq
+
+from lucena.service import Service
+from lucena.worker import Worker
+
+
+class TestClientService(unittest.TestCase):
+
+    def setUp(self):
+        super(TestClientService, self).setUp()
+        self.service = Service(number_of_workers=16, worker_factory=Worker)
+
+    def client_task(self, client_name):
+        """
+        Basic request-reply client using REQ socket.
+        """
+        socket = zmq.Context().socket(zmq.REQ)
+        socket.identity = u"client-{}".format(client_name).encode("ascii")
+        socket.connect("ipc://frontend.ipc")
+        socket.send(b'{"$req": "HELLO"}')
+        reply = socket.recv()
+        self.assertEqual(
+            reply,
+            b'{"$req": "HELLO", "$rep": null, "$error": "No handler match"}'
+        )
+
+    def test_total_client_requests(self):
+        self.service.start()
+        client_requests = 10
+        for i in range(client_requests):
+            self.client_task(i)
+        self.service.stop()
+        self.assertEqual(client_requests, self.service.total_client_requests)
