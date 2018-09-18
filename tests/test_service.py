@@ -11,7 +11,10 @@ class TestClientService(unittest.TestCase):
 
     def setUp(self):
         super(TestClientService, self).setUp()
-        self.service = Service(number_of_workers=16, worker_factory=Worker)
+        self.service = Service(
+            Worker,
+            number_of_workers=4
+        )
 
     def client_task(self, client_name):
         """
@@ -19,7 +22,7 @@ class TestClientService(unittest.TestCase):
         """
         socket = zmq.Context().socket(zmq.REQ)
         socket.identity = u"client-{}".format(client_name).encode("ascii")
-        socket.connect("ipc://frontend.ipc")
+        socket.connect(self.service.endpoint)
         socket.send(b'{"$req": "HELLO"}')
         reply = socket.recv()
         self.assertEqual(

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import tempfile
 import threading
 
 import zmq
@@ -7,14 +8,16 @@ from lucena.channel import ServiceClientChannel, ServiceWorkerChannel
 
 
 class Service(object):
-    def __init__(self, worker_factory, number_of_workers=4):
+    def __init__(self, worker_factory, endpoint=None, number_of_workers=1):
         # http://zguide.zeromq.org/page:all#Getting-the-Context-Right
         # You should create and use exactly one context in your process.
         self.context = zmq.Context.instance()
+        self.endpoint = endpoint if endpoint is not None \
+            else "ipc://{}.ipc".format(tempfile.NamedTemporaryFile().name)
         self.worker_factory = worker_factory
         self.client_channel = ServiceClientChannel(
             self.context,
-            "ipc://frontend.ipc"
+            self.endpoint
         )
         self.poller = zmq.Poller()
         self.worker_channel = None
