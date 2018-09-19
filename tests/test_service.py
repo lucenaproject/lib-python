@@ -15,6 +15,7 @@ class TestClientService(unittest.TestCase):
             Worker,
             number_of_workers=4
         )
+        self.service.start()
 
     def client_task(self, client_name):
         """
@@ -27,13 +28,15 @@ class TestClientService(unittest.TestCase):
         reply = socket.recv()
         self.assertEqual(
             reply,
-            b'{"$req": "HELLO", "$rep": null, "$error": "No handler match"}'
+            b'{"$req": "$HELLO", "$rep": null, "$error": "No handler match"}'
         )
 
     def test_total_client_requests(self):
-        self.service.start()
+
         client_requests = 10
         for i in range(client_requests):
             self.client_task(i)
-        self.service.stop()
         self.assertEqual(client_requests, self.service.total_client_requests)
+
+    def tearDown(self):
+        self.service.stop()
