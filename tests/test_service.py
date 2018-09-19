@@ -28,7 +28,7 @@ class TestClientService(unittest.TestCase):
         reply = socket.recv()
         self.assertEqual(
             reply,
-            b'{"$req": "$HELLO", "$rep": null, "$error": "No handler match"}'
+            b'{"$req": "HELLO", "$rep": null, "$error": "No handler match"}'
         )
 
     def test_total_client_requests(self):
