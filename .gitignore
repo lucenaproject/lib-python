@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Interprocess files
+*.ipc
+
 # Distribution / packaging
 .Python
 env/

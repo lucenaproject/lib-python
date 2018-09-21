@@ -5,7 +5,7 @@
 > —AF
 >
 
-# lucena.py
+# Lucena Python library
 
 
 The Python core library for building microservices in Lucena Project.
