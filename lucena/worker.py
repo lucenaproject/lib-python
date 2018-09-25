@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from lucena import STOP_MESSAGE
 from lucena.channel import WorkerChannel
 from lucena.message_handler import MessageHandler
 
@@ -39,12 +40,10 @@ class Worker(object):
         channel = WorkerChannel(self.service.context, self.name)
         while True:
             client, message = channel.recv()
-            print("{}: {}".format(self.name, message))
-            if message == WorkerChannel.STOP_MESSAGE:
+            if message == STOP_MESSAGE:
                 break
             response = self.resolve(message)
             channel.send(client, response)
-        print("FINISH WORKER TASK")
 
 
 class MathWorker(Worker):
