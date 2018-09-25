@@ -1,2 +1,17 @@
 # -*- coding: utf-8 -*-
-from lucena.service import Service
+
+VOID_FRAME = b'<void>'
+READY_MESSAGE = {"$signal": "READY"}
+STOP_MESSAGE = {"$signal": "STOP"}
+
+
+class SignalException(Exception):
+    pass
+
+
+class StopSignal(SignalException):
+    pass
+
+
+class ErrorSignal(SignalException):
+    pass
