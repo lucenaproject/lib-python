@@ -3,6 +3,8 @@ import json
 
 import zmq
 
+from lucena import READY_MESSAGE, VOID_FRAME
+
 
 class Channel(object):
     """
@@ -11,9 +13,6 @@ class Channel(object):
     communication between Client <-> Service <-> Worker.
     """
     DELIMITER_FRAME = b''
-    VOID_FRAME = b'<void>'
-    READY_MESSAGE = {"$signal": "READY"}
-    STOP_MESSAGE = {"$signal": "STOP"}
     WORKER_ENDPOINT = "inproc://worker"
 
     def __init__(self, context, socket_type, endpoint, identity=None):
@@ -56,8 +55,7 @@ class Channel(object):
 class WorkerChannel(Channel):
     """
     This Channel allows Workers to send replies to Clients through a
-    Service router. It's just a normal socket wrapper that sends a
-    READY message when the channel is opened.
+    Service router.
 
     Client <--> Service:ServiceWorkerChannel <--> WorkerChannel:Worker
     """
@@ -71,7 +69,7 @@ class WorkerChannel(Channel):
 
     def _after_open(self):
         self.socket.connect(self.endpoint)
-        self.send(Channel.VOID_FRAME, Channel.READY_MESSAGE)
+        self.send(VOID_FRAME, READY_MESSAGE)
 
     def send(self, client, message):
         self.socket.send_multipart([
@@ -92,8 +90,7 @@ class WorkerChannel(Channel):
 class ServiceWorkerChannel(Channel):
     """
     This Channel routes messages between Workers and Clients through a Service
-    router. Notice that plug_worker() starts a worker in a new Thread.
-    When Channel closes, a STOP signal is sent to all registered workers.
+    router. When Channel closes, a STOP signal is sent to all registered workers.
 
     Client <--> Service:ServiceWorkerChannel <--> WorkerChannel:Worker
     """
@@ -103,19 +100,9 @@ class ServiceWorkerChannel(Channel):
             zmq.ROUTER,
             Channel.WORKER_ENDPOINT
         )
-        self.workers = []
 
     def _after_open(self):
         self.socket.bind(self.endpoint)
-
-    def _before_close(self):
-        while self.workers:
-            worker = self.workers.pop()
-            self.send(worker, Channel.VOID_FRAME, Channel.STOP_MESSAGE)
-
-    def _plug_worker(self, worker_class, identity):
-        worker = worker_class()
-        worker.start(self.context, identity)
 
     def send(self, worker, client, message):
         self.socket.send_multipart([
@@ -135,14 +122,6 @@ class ServiceWorkerChannel(Channel):
         client = frames[2]
         message = json.loads(frames[4].decode('utf-8'))
         return worker, client, message
-
-    def plug_worker_by_name(self, worker_name):
-        worker_zmq_id, client, message = self.recv()
-        assert worker_name is None or worker_zmq_id == worker_name
-        assert client == Channel.VOID_FRAME
-        assert message == Channel.READY_MESSAGE
-        self.workers.append(worker_zmq_id)
-        return worker_zmq_id
 
 
 class ServiceClientChannel(Channel):
