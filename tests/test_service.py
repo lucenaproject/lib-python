@@ -3,7 +3,7 @@ import unittest
 
 import zmq
 
-from lucena.service import Service
+from lucena.service import create_service
 from lucena.worker import Worker
 
 
@@ -11,9 +11,9 @@ class TestClientService(unittest.TestCase):
 
     def setUp(self):
         super(TestClientService, self).setUp()
-        self.service = Service(
+        self.service = create_service(
             Worker,
-            number_of_workers=4
+            number_of_workers=8
         )
         self.service.start()
 
@@ -21,9 +21,9 @@ class TestClientService(unittest.TestCase):
         """
         Basic request-reply client using REQ socket.
         """
-        socket = zmq.Context().socket(zmq.REQ)
+        socket = zmq.Context.instance().socket(zmq.REQ)
         socket.identity = u"client-{}".format(client_name).encode("ascii")
-        socket.connect(self.service.endpoint)
+        socket.connect(self.service.slave.endpoint)
         socket.send(b'{"$req": "HELLO"}')
         reply = socket.recv()
         self.assertEqual(
@@ -32,11 +32,10 @@ class TestClientService(unittest.TestCase):
         )
 
     def test_total_client_requests(self):
-
-        client_requests = 10
+        client_requests = 1000
         for i in range(client_requests):
             self.client_task(i)
-        self.assertEqual(client_requests, self.service.total_client_requests)
+        self.assertEqual(client_requests, self.service.slave.total_client_requests)
 
     def tearDown(self):
         self.service.stop()
