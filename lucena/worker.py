@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
+import zmq
+
 from lucena import STOP_MESSAGE
-from lucena.channel import WorkerChannel
+from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
 
 class Worker(object):
-    def __init__(self, name=None, service=None):
+    def __init__(self, name=None):
         self.name = name
-        self.service = service
         self.message_handlers = []
         self.bind_handler({}, self.default_handler)
 
@@ -35,15 +36,19 @@ class Worker(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def start(self):
-        assert self.service is not None
-        channel = WorkerChannel(self.service.context, self.name)
+    def start(self, context, endpoint):
+        from lucena import READY_MESSAGE, VOID_FRAME
+        socket = Socket(context, zmq.REQ)
+        if self.name:
+            socket.identity = self.name
+        socket.connect(endpoint)
+        socket.send_to_client(VOID_FRAME, READY_MESSAGE)
         while True:
-            client, message = channel.recv()
+            client, message = socket.recv_from_client()
             if message == STOP_MESSAGE:
                 break
             response = self.resolve(message)
-            channel.send(client, response)
+            socket.send_to_client(client, response)
 
 
 class MathWorker(Worker):
