@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import zmq
 
-from lucena import STOP_MESSAGE
+from lucena import STOP_MESSAGE, READY_MESSAGE, VOID_FRAME
 from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
@@ -37,18 +37,17 @@ class Worker(object):
         return handler(message)
 
     def start(self, context, endpoint):
-        from lucena import READY_MESSAGE, VOID_FRAME
         socket = Socket(context, zmq.REQ)
         if self.name:
             socket.identity = self.name
         socket.connect(endpoint)
-        socket.send_to_client(VOID_FRAME, READY_MESSAGE)
+        socket.send_to_service(VOID_FRAME, READY_MESSAGE)
         while True:
-            client, message = socket.recv_from_client()
+            client, message = socket.recv_from_service()
             if message == STOP_MESSAGE:
                 break
             response = self.resolve(message)
-            socket.send_to_client(client, response)
+            socket.send_to_service(client, response)
 
 
 class MathWorker(Worker):

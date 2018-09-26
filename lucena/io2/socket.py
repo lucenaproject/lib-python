@@ -58,14 +58,14 @@ class Socket(zmq.Socket):
         assert Socket.is_signal(message)
         return struct.unpack('I', message)[0]
 
-    def send_to_client(self, client, message):
+    def send_to_service(self, client, message):
         self.send_multipart([
             client,
             Socket.DELIMITER_FRAME,
             bytes(json.dumps(message).encode('utf-8'))
         ])
 
-    def recv_from_client(self):
+    def recv_from_service(self):
         frames = self.recv_multipart()
         assert len(frames) == 3
         assert frames[1] == Socket.DELIMITER_FRAME
@@ -73,7 +73,7 @@ class Socket(zmq.Socket):
         message = json.loads(frames[2].decode('utf-8'))
         return client, message
 
-    def sw_send(self, worker, client, message):
+    def send_to_client(self, worker, client, message):
         self.send_multipart([
             worker,
             Socket.DELIMITER_FRAME,
@@ -82,7 +82,7 @@ class Socket(zmq.Socket):
             bytes(json.dumps(message).encode('utf-8'))
         ])
 
-    def sw_recv(self):
+    def recv_from_client(self):
         frames = self.recv_multipart()
         assert len(frames) == 5
         assert frames[1] == Socket.DELIMITER_FRAME

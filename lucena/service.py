@@ -53,7 +53,7 @@ class Service(object):
                 args=(worker_id,)
             )
             thread.start()
-            worker_zmq_id, client, message = self.sw_socket.sw_recv()
+            worker_zmq_id, client, message = self.sw_socket.recv_from_client()
             assert worker_id is None or worker_zmq_id == worker_id
             assert client == VOID_FRAME
             assert message == READY_MESSAGE
@@ -64,7 +64,7 @@ class Service(object):
     def _unplug_workers(self):
         while self.worker_ids:
             worker_id = self.worker_ids.pop()
-            self.sw_socket.sw_send(worker_id, VOID_FRAME, STOP_MESSAGE)
+            self.sw_socket.send_to_client(worker_id, VOID_FRAME, STOP_MESSAGE)
 
     def _handle_poll(self):
         self.poller.register(
@@ -86,7 +86,7 @@ class Service(object):
         self.signal_stop = self.signal_stop or signal == Socket.SIGNAL_STOP
 
     def _handle_worker_channel(self):
-        worker_name, client, reply = self.sw_socket.sw_recv()
+        worker_name, client, reply = self.sw_socket.recv_from_client()
         self.worker_ready_ids.append(worker_name)
         self.client_channel.send(client, reply)
 
@@ -94,7 +94,7 @@ class Service(object):
         assert len(self.worker_ready_ids) > 0
         client, request = self.client_channel.recv()
         worker_name = self.worker_ready_ids.pop(0)
-        self.sw_socket.sw_send(worker_name, client, request)
+        self.sw_socket.send_to_client(worker_name, client, request)
         self.total_client_requests += 1
 
     def controller_loop(self, control_socket):
