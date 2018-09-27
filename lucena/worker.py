@@ -7,8 +7,7 @@ from lucena.message_handler import MessageHandler
 
 
 class Worker(object):
-    def __init__(self, name=None):
-        self.name = name
+    def __init__(self):
         self.message_handlers = []
         self.bind_handler({}, self.default_handler)
 
@@ -36,10 +35,8 @@ class Worker(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def start(self, context, endpoint):
-        socket = Socket(context, zmq.REQ)
-        if self.name:
-            socket.identity = self.name
+    def start(self, context, endpoint, identity=None):
+        socket = Socket(context, zmq.REQ, identity=identity)
         socket.connect(endpoint)
         socket.send_to_service(VOID_FRAME, READY_MESSAGE)
         while True:
