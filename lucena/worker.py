@@ -38,13 +38,13 @@ class Worker(object):
     def start(self, context, endpoint, identity=None):
         socket = Socket(context, zmq.REQ, identity=identity)
         socket.connect(endpoint)
-        socket.send_to_service(VOID_FRAME, READY_MESSAGE)
+        socket.send_to_client(VOID_FRAME, READY_MESSAGE)
         while True:
-            client, message = socket.recv_from_service()
+            client, message = socket.recv_from_client()
             if message == STOP_MESSAGE:
                 break
             response = self.resolve(message)
-            socket.send_to_service(client, response)
+            socket.send_to_client(client, response)
 
 
 class MathWorker(Worker):

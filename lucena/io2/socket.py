@@ -66,14 +66,14 @@ class Socket(zmq.Socket):
         assert Socket.is_signal(message)
         return struct.unpack('I', message)[0]
 
-    def send_to_service(self, client, message):
+    def send_to_client(self, client, message):
         self.send_multipart([
             client,
             Socket.DELIMITER_FRAME,
             bytes(json.dumps(message).encode('utf-8'))
         ])
 
-    def recv_from_service(self):
+    def recv_from_client(self):
         frames = self.recv_multipart()
         assert len(frames) == 3
         assert frames[1] == Socket.DELIMITER_FRAME

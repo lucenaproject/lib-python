@@ -5,7 +5,6 @@ import threading
 import zmq
 
 from lucena import READY_MESSAGE, VOID_FRAME, STOP_MESSAGE
-from lucena.channel import ServiceClientChannel
 from lucena.controller import Controller
 from lucena.io2.socket import Socket
 
@@ -21,15 +20,12 @@ class Service(object):
         self.endpoint = endpoint if endpoint is not None \
             else "ipc://{}.ipc".format(tempfile.NamedTemporaryFile().name)
         self.number_of_workers = number_of_workers
+        self.socket = None
         self.control_socket = None
         self.proxy_socket = None
-        self.client_channel = ServiceClientChannel(
-            self.context,
-            self.endpoint
-        )
-        self.worker_threads = []
-        self.worker_ids = []
-        self.worker_ready_ids = []
+        self.worker_threads = None
+        self.worker_ids = None
+        self.worker_ready_ids = None
         self.signal_stop = False
         self.total_client_requests = 0
 
@@ -41,11 +37,18 @@ class Service(object):
         worker.start(self.context, self.proxy_socket.last_endpoint, identity)
 
     def _plug(self, control_socket, number_of_workers):
-        assert self.worker_ids == []
+        # Init worker queues
+        self.worker_threads = []
+        self.worker_ids = []
+        self.worker_ready_ids = []
+        # Init sockets
+        self.socket = Socket(self.context, zmq.ROUTER)
+        self.socket.bind(self.endpoint)
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
         self.proxy_socket = Socket(self.context, zmq.ROUTER)
         self.proxy_socket.bind(Socket.inproc_unique_endpoint())
+        # Init workers
         for i in range(number_of_workers):
             worker_id = 'worker#{}'.format(i).encode('utf8')
             thread = threading.Thread(
@@ -65,9 +68,9 @@ class Service(object):
         while self.worker_ids:
             worker_id = self.worker_ids.pop()
             self.proxy_socket.send_to_worker(worker_id, VOID_FRAME, STOP_MESSAGE)
-        self.control_socket.close()
+        self.socket.close()
         self.proxy_socket.close()
-        self.client_channel.close()
+        self.control_socket.close()
 
     def _handle_poll(self):
         self.poller.register(
@@ -75,7 +78,7 @@ class Service(object):
             zmq.POLLIN
         )
         self.poller.register(
-            self.client_channel.socket,
+            self.socket,
             zmq.POLLIN if self.worker_ready_ids and not self.signal_stop else 0
         )
         self.poller.register(
@@ -91,11 +94,11 @@ class Service(object):
     def _handle_proxy_socket(self):
         worker_id, client, reply = self.proxy_socket.recv_from_worker()
         self.worker_ready_ids.append(worker_id)
-        self.client_channel.send(client, reply)
+        self.socket.send_to_client(client, reply)
 
-    def _handle_client_channel(self):
+    def _handle_socket(self):
         assert len(self.worker_ready_ids) > 0
-        client, request = self.client_channel.recv()
+        client, request = self.socket.recv_from_client()
         worker_name = self.worker_ready_ids.pop(0)
         self.proxy_socket.send_to_worker(worker_name, client, request)
         self.total_client_requests += 1
@@ -106,14 +109,15 @@ class Service(object):
             sockets = self._handle_poll()
             if self.control_socket in sockets:
                 self._handle_control_socket()
-            if self.client_channel.socket in sockets:
-                self._handle_client_channel()
+            if self.socket in sockets:
+                self._handle_socket()
             if self.proxy_socket in sockets:
                 self._handle_proxy_socket()
         self._unplug()
 
     def pending_workers(self):
-        return len(self.worker_ready_ids) < self.number_of_workers
+        return self.worker_ready_ids is not None and \
+               len(self.worker_ready_ids) < self.number_of_workers
 
 
 def create_service(worker_factory=None, endpoint=None, number_of_workers=1):
