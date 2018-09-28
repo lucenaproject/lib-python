@@ -40,8 +40,10 @@ class Service(object):
         worker = self.worker_factory()
         worker.start(self.context, self.proxy_socket.last_endpoint, identity)
 
-    def _plug_workers(self, number_of_workers):
+    def _plug(self, control_socket, number_of_workers):
         assert self.worker_ids == []
+        self.control_socket = control_socket
+        self.control_socket.signal(Socket.SIGNAL_READY)
         self.proxy_socket = Socket(self.context, zmq.ROUTER)
         self.proxy_socket.bind(Socket.inproc_unique_endpoint())
         for i in range(number_of_workers):
@@ -59,10 +61,13 @@ class Service(object):
             self.worker_ids.append(worker_id)
             self.worker_ready_ids.append(worker_id)
 
-    def _unplug_workers(self):
+    def _unplug(self):
         while self.worker_ids:
             worker_id = self.worker_ids.pop()
             self.proxy_socket.send_to_worker(worker_id, VOID_FRAME, STOP_MESSAGE)
+        self.control_socket.close()
+        self.proxy_socket.close()
+        self.client_channel.close()
 
     def _handle_poll(self):
         self.poller.register(
@@ -96,9 +101,7 @@ class Service(object):
         self.total_client_requests += 1
 
     def controller_loop(self, control_socket):
-        self.control_socket = control_socket
-        control_socket.signal(Socket.SIGNAL_READY)
-        self._plug_workers(self.number_of_workers)
+        self._plug(control_socket, self.number_of_workers)
         while not self.signal_stop or self.pending_workers():
             sockets = self._handle_poll()
             if self.control_socket in sockets:
@@ -107,10 +110,7 @@ class Service(object):
                 self._handle_client_channel()
             if self.proxy_socket in sockets:
                 self._handle_proxy_socket()
-        self._unplug_workers()
-        self.control_socket.close()
-        self.proxy_socket.close()
-        self.client_channel.close()
+        self._unplug()
 
     def pending_workers(self):
         return len(self.worker_ready_ids) < self.number_of_workers
