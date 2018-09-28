@@ -48,6 +48,14 @@ class Socket(zmq.Socket):
         socket_1.connect(endpoint)
         return socket_0, socket_1
 
+    def __init__(self, *args, **kwargs):
+        identity = None
+        if 'identity' in kwargs:
+            identity = kwargs.pop('identity')
+        super(Socket, self).__init__(*args, **kwargs)
+        if identity is not None:
+            self.identity = identity
+
     def signal(self, status=0):
         assert status < 0x7fffffff
         self.send(struct.pack("I", status))
@@ -73,7 +81,7 @@ class Socket(zmq.Socket):
         message = json.loads(frames[2].decode('utf-8'))
         return client, message
 
-    def send_to_client(self, worker, client, message):
+    def send_to_worker(self, worker, client, message):
         self.send_multipart([
             worker,
             Socket.DELIMITER_FRAME,
@@ -82,7 +90,7 @@ class Socket(zmq.Socket):
             bytes(json.dumps(message).encode('utf-8'))
         ])
 
-    def recv_from_client(self):
+    def recv_from_worker(self):
         frames = self.recv_multipart()
         assert len(frames) == 5
         assert frames[1] == Socket.DELIMITER_FRAME
@@ -94,5 +102,7 @@ class Socket(zmq.Socket):
 
 
 if __name__ == '__main__':
-    s0, s1 = Socket.socket_pair(zmq.Context())
-    print(s0.last_endpoint)
+    s = Socket(zmq.Context(), zmq.REQ, identity="culo")
+    print(s.identity)
+    # s0, s1 = Socket.socket_pair(zmq.Context())
+    # print(s0.last_endpoint)
