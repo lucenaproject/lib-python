@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 import zmq
 
-from lucena import STOP_MESSAGE, READY_MESSAGE, VOID_FRAME
 from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
 
 class Worker(object):
     def __init__(self):
+        self.socket = None
+        self.control_socket = None
+        self.poller = zmq.Poller()
         self.message_handlers = []
+        self.signal_stop = False
         self.bind_handler({}, self.default_handler)
 
     @staticmethod
@@ -23,7 +26,7 @@ class Worker(object):
         self.message_handlers.sort()
 
     def bind_remote_handler(self, message, handler_endpoint):
-        pass
+        raise NotImplementedError()
 
     def get_handler_for(self, message):
         for message_handler in self.message_handlers:
@@ -35,16 +38,37 @@ class Worker(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def start(self, context, endpoint, identity=None):
-        socket = Socket(context, zmq.REQ, identity=identity)
-        socket.connect(endpoint)
-        socket.send_to_service(VOID_FRAME, READY_MESSAGE)
-        while True:
-            client, message = socket.recv_from_service()
-            if message == STOP_MESSAGE:
-                break
-            response = self.resolve(message)
-            socket.send_to_service(client, response)
+    def controller_loop(self, control_socket, context, endpoint, identity=None):
+        self.socket = Socket(context, zmq.REP, identity=identity)
+        self.socket.connect(endpoint)
+        self.control_socket = control_socket
+        self.control_socket.signal(Socket.SIGNAL_READY)
+        while not self.signal_stop:
+            sockets = self._handle_poll()
+            if self.control_socket in sockets:
+                self._handle_control_socket()
+            if self.socket in sockets:
+                self._handle_socket()
+
+    def _handle_poll(self):
+        self.poller.register(
+            self.control_socket,
+            zmq.POLLIN
+        )
+        self.poller.register(
+            self.socket,
+            zmq.POLLIN if not self.signal_stop else 0
+        )
+        return dict(self.poller.poll(.1))
+
+    def _handle_control_socket(self):
+        signal = self.control_socket.wait(timeout=10)
+        self.signal_stop = self.signal_stop or signal == Socket.SIGNAL_STOP
+
+    def _handle_socket(self):
+        client, message = self.socket.recv_from_client()
+        response = self.resolve(message)
+        self.socket.send_to_client(client, response)
 
 
 class MathWorker(Worker):

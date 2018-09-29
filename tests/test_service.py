@@ -13,7 +13,7 @@ class TestClientService(unittest.TestCase):
         super(TestClientService, self).setUp()
         self.service = create_service(
             Worker,
-            number_of_workers=8
+            number_of_workers=4
         )
         self.service.start()
 
@@ -32,7 +32,7 @@ class TestClientService(unittest.TestCase):
         )
 
     def test_total_client_requests(self):
-        client_requests = 1000
+        client_requests = 256
         for i in range(client_requests):
             self.client_task(i)
         self.assertEqual(client_requests, self.service.slave.total_client_requests)
