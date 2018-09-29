@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 import tempfile
-import threading
 
 import zmq
 
-from lucena import READY_MESSAGE, VOID_FRAME, STOP_MESSAGE
 from lucena.controller import Controller
 from lucena.io2.socket import Socket
 
@@ -23,14 +21,11 @@ class Service(object):
         self.socket = None
         self.control_socket = None
         self.proxy_socket = None
-        self.worker_threads = None
+        self.worker_controllers = None
         self.worker_ids = None
         self.worker_ready_ids = None
         self.signal_stop = False
         self.total_client_requests = 0
-
-    def __del__(self):
-        self.context.term()
 
     def _start_worker(self, identity=None):
         worker = self.worker_factory()
@@ -38,37 +33,35 @@ class Service(object):
 
     def _plug(self, control_socket, number_of_workers):
         # Init worker queues
-        self.worker_threads = []
+        self.worker_controllers = []
         self.worker_ids = []
         self.worker_ready_ids = []
         # Init sockets
         self.socket = Socket(self.context, zmq.ROUTER)
         self.socket.bind(self.endpoint)
-        self.control_socket = control_socket
-        self.control_socket.signal(Socket.SIGNAL_READY)
         self.proxy_socket = Socket(self.context, zmq.ROUTER)
         self.proxy_socket.bind(Socket.inproc_unique_endpoint())
+        self.control_socket = control_socket
+        self.control_socket.signal(Socket.SIGNAL_READY)
         # Init workers
         for i in range(number_of_workers):
             worker_id = 'worker#{}'.format(i).encode('utf8')
-            thread = threading.Thread(
-                daemon=False,
-                target=self._start_worker,
-                args=(worker_id,)
-            )
-            thread.start()
-            worker_id, client, message = self.proxy_socket.recv_from_worker()
-            assert client == VOID_FRAME
-            assert message == READY_MESSAGE
-            self.worker_threads.append(thread)
+            worker = self.worker_factory()
+            controller = Controller(worker)
+            self.worker_controllers.append(controller)
             self.worker_ids.append(worker_id)
             self.worker_ready_ids.append(worker_id)
+            controller.start(
+                context=self.context,
+                endpoint=self.proxy_socket.last_endpoint,
+                identity=worker_id
+            )
 
     def _unplug(self):
-        while self.worker_ids:
-            worker_id = self.worker_ids.pop()
-            self.proxy_socket.send_to_worker(worker_id, VOID_FRAME, STOP_MESSAGE)
         self.socket.close()
+        while self.worker_controllers:
+            worker = self.worker_controllers.pop()
+            worker.stop()
         self.proxy_socket.close()
         self.control_socket.close()
 
