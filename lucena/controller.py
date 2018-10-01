@@ -7,6 +7,7 @@ from lucena.io2.socket import Socket
 
 
 class Controller(object):
+
     def __init__(self, slave):
         self.context = zmq.Context.instance()
         self.slave = slave
@@ -14,7 +15,6 @@ class Controller(object):
         self.master_socket = None
 
     def start(self, **kwargs):
-        assert self.thread is None
         self.master_socket, slave_socket = Socket.socket_pair(self.context)
         self.thread = threading.Thread(
             target=self.slave.controller_loop,
@@ -26,5 +26,8 @@ class Controller(object):
         signal = self.master_socket.wait()
         assert signal == Socket.SIGNAL_READY
 
-    def stop(self):
+    def stop(self, timeout=None):
         self.master_socket.signal(Socket.SIGNAL_STOP)
+        self.thread.join(timeout=timeout)
+        self.master_socket.close()
+        self.thread = None
