@@ -15,7 +15,6 @@ class TestClientService(unittest.TestCase):
             Worker,
             number_of_workers=4
         )
-        self.service.start()
 
     def client_task(self, client_name):
         """
@@ -33,9 +32,14 @@ class TestClientService(unittest.TestCase):
 
     def test_total_client_requests(self):
         client_requests = 256
+        self.service.start()
         for i in range(client_requests):
             self.client_task(i)
         self.assertEqual(client_requests, self.service.slave.total_client_requests)
-
-    def tearDown(self):
         self.service.stop()
+
+    def test_service_restart(self):
+        for i in range(10):
+            self.assertEqual(self.service.thread, None)
+            self.service.start()
+            self.service.stop()
