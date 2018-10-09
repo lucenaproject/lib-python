@@ -101,6 +101,15 @@ class Socket(zmq.Socket):
         return worker, client, message
 
 
+class RouteSocket(Socket):
+
+    def wait(self, timeout=-1):
+        self.setsockopt(zmq.RCVTIMEO, timeout)
+        sender, delimiter, message = self.recv_multipart()
+        assert Socket.is_signal(message)
+        return struct.unpack('I', message)[0]
+
+
 if __name__ == '__main__':
     s = Socket(zmq.Context(), zmq.REQ, identity="culo")
     print(s.identity)
