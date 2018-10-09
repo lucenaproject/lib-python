@@ -1,20 +1,16 @@
 # -*- coding: utf-8 -*-
 import json
 
+import zmq
+
+from lucena.io2.socket import Socket
+
 
 class MessageHandlerPair(object):
     """
-    Base class for all message handlers.
-
     A message is basically a request (REQ) from a client, a handler is a
     function that resolves the request and returns a reply (REP).
     This class maps a message with a callable function (the handler).
-    We typically use the following handlers:
-
-    1. MessageHandler: Maps a message with a local resolver function.
-
-    2. RemoteMessageHandler: Maps a message with a remote service. In order to
-       resolve the message, a network request has to be done.
 
     The handler evaluation order is important and it's determined by the
     following rules (implemented in the __lt__ method):
@@ -63,3 +59,56 @@ class MessageHandlerPair(object):
             return True
         except (AssertionError, KeyError):
             return False
+
+
+class MessageHandler(object):
+
+    def __init__(self):
+        self.poller = zmq.Poller()
+        self.message_handlers = []
+        self.bind_handler({}, self.default_handler)
+        self.stop_signal = False
+        self.control_socket = None
+
+    def _handle_poll(self):
+        self.poller.register(
+            self.control_socket,
+            zmq.POLLIN
+        )
+        return dict(self.poller.poll(.1))
+
+    def _handle_control_socket(self):
+        print("cccccccccccccc")
+        client, message = self.control_socket.recv_from_client()
+        response = self.resolve(message)
+        self.control_socket.send_to_client(client, response)
+
+    @staticmethod
+    def default_handler(message):
+        response = {}
+        response.update(message)
+        response.update({"$rep": None, "$error": "No handler match"})
+        return response
+
+    def bind_handler(self, message, handler):
+        self.message_handlers.append(MessageHandlerPair(message, handler))
+        self.message_handlers.sort()
+
+    def get_handler_for(self, message):
+        for message_handler in self.message_handlers:
+            if message_handler.match_in(message):
+                return message_handler.handler
+        raise LookupError("No handler for {}".format(message))
+
+    def resolve(self, message):
+        handler = self.get_handler_for(message)
+        return handler(message)
+
+    def plug_controller(self, endpoint, context, identity=None):
+        self.control_socket = Socket(context, zmq.REQ, identity=identity)
+        self.control_socket.connect(endpoint)
+        self.control_socket.signal(Socket.SIGNAL_READY)
+        while not self.stop_signal:
+            sockets = self._handle_poll()
+            if self.control_socket in sockets:
+                self._handle_control_socket()
