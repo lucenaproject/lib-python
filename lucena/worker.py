@@ -2,7 +2,7 @@
 import zmq
 
 from lucena.io2.socket import Socket
-from lucena.message_handler import MessageHandler
+from lucena.message_handler import MessageHandlerPair
 
 
 class Worker(object):
@@ -22,7 +22,7 @@ class Worker(object):
         return response
 
     def bind_handler(self, message, handler):
-        self.message_handlers.append(MessageHandler(message, handler))
+        self.message_handlers.append(MessageHandlerPair(message, handler))
         self.message_handlers.sort()
 
     def bind_remote_handler(self, message, handler_endpoint):

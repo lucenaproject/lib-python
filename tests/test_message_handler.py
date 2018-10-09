@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 
-from lucena.message_handler import MessageHandler
+from lucena.message_handler import MessageHandlerPair
 
 
 class TestMessageHandler(unittest.TestCase):
@@ -13,22 +13,22 @@ class TestMessageHandler(unittest.TestCase):
         super(TestMessageHandler, self).setUp()
 
     def test_more_properties_win(self):
-        mh1 = MessageHandler(
+        mh1 = MessageHandlerPair(
             {'a': 123, 'b': 999, 'c': 'hello'},
             self.basic_handler
         )
-        mh2 = MessageHandler(
+        mh2 = MessageHandlerPair(
             {'a': 123, 'b': 999},
             self.basic_handler
         )
         self.assertTrue(mh1 < mh2)
 
     def test_alphabetical_order_win(self):
-        mh1 = MessageHandler(
+        mh1 = MessageHandlerPair(
             {'a': 123, 'b': 999, 'c': 'hello'},
             self.basic_handler
         )
-        mh2 = MessageHandler(
+        mh2 = MessageHandlerPair(
             {'a': 123, 'b': 999, 'd': 'hello'},
             self.basic_handler
         )

@@ -2,7 +2,7 @@
 import json
 
 
-class MessageHandler(object):
+class MessageHandlerPair(object):
     """
     Base class for all message handlers.
 
@@ -63,16 +63,3 @@ class MessageHandler(object):
             return True
         except (AssertionError, KeyError):
             return False
-
-
-class RemoteMessageHandler(MessageHandler):
-    def __init__(self, message, resolver_endpoint):
-        self.resolver_endpoint = resolver_endpoint
-        super(RemoteMessageHandler, self).__init__(message, self.remote_resolve)
-
-    @property
-    def is_local(self):
-        return False
-
-    def remote_resolve(self):
-        raise NotImplementedError()
