@@ -69,6 +69,7 @@ class MessageHandler(object):
         self.bind_handler({}, self.default_handler)
         self.bind_handler({'$signal': 'stop'}, self.default_handler)
         self.stop_signal = False
+        self.socket = None
         self.control_socket = None
 
     def _handle_poll(self):
@@ -76,12 +77,20 @@ class MessageHandler(object):
             self.control_socket,
             zmq.POLLIN
         )
+        self.poller.register(
+            self.socket,
+            zmq.POLLIN if not self.stop_signal else 0
+        )
         return dict(self.poller.poll(.1))
 
     def _handle_control_socket(self):
-        client, message = self.control_socket.recv_from_client()
+        signal = self.control_socket.wait(timeout=10)
+        self.stop_signal = self.stop_signal or signal == Socket.SIGNAL_STOP
+
+    def _handle_socket(self):
+        client, message = self.socket.recv_from_client()
         response = self.resolve(message)
-        self.control_socket.send_to_client(client, response)
+        self.socket.send_to_client(client, response)
 
     @staticmethod
     def default_handler(message):

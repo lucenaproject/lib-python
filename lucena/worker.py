@@ -6,9 +6,6 @@ from lucena.message_handler import MessageHandler
 
 
 class Worker(MessageHandler):
-    def __init__(self):
-        self.socket = None
-        super(Worker, self).__init__()
 
     def controller_loop(self, control_socket, context, endpoint, identity=None):
         self.socket = Socket(context, zmq.REP, identity=identity)
@@ -21,26 +18,6 @@ class Worker(MessageHandler):
                 self._handle_control_socket()
             if self.socket in sockets:
                 self._handle_socket()
-
-    def _handle_poll(self):
-        self.poller.register(
-            self.control_socket,
-            zmq.POLLIN
-        )
-        self.poller.register(
-            self.socket,
-            zmq.POLLIN if not self.stop_signal else 0
-        )
-        return dict(self.poller.poll(.1))
-
-    def _handle_control_socket(self):
-        signal = self.control_socket.wait(timeout=10)
-        self.stop_signal = self.stop_signal or signal == Socket.SIGNAL_STOP
-
-    def _handle_socket(self):
-        client, message = self.socket.recv_from_client()
-        response = self.resolve(message)
-        self.socket.send_to_client(client, response)
 
 
 class MathWorker(Worker):
