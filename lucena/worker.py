@@ -14,16 +14,6 @@ class Worker(MessageHandler):
         self.signal_stop = False
         self.bind_handler({}, self.default_handler)
 
-    def get_handler_for(self, message):
-        for message_handler in self.message_handlers:
-            if message_handler.match_in(message):
-                return message_handler.handler
-        raise LookupError("No handler for {}".format(message))
-
-    def resolve(self, message):
-        handler = self.get_handler_for(message)
-        return handler(message)
-
     def controller_loop(self, control_socket, context, endpoint, identity=None):
         self.socket = Socket(context, zmq.REP, identity=identity)
         self.socket.connect(endpoint)
