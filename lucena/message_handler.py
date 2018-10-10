@@ -67,7 +67,7 @@ class MessageHandler(object):
         self.poller = zmq.Poller()
         self.message_handlers = []
         self.bind_handler({}, self.default_handler)
-        self.bind_handler({'$signal': 'stop'}, self.default_handler)
+        self.bind_handler({'$signal': 'stop'}, self.stop_handler)
         self.stop_signal = False
         self.socket = None
         self.control_socket = None
@@ -120,11 +120,23 @@ class MessageHandler(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def plug_controller(self, endpoint, context, identity=None):
-        self.control_socket = Socket(context, zmq.REQ, identity=identity)
-        self.control_socket.connect(endpoint)
+    def controller_loop(self, control_socket, context, endpoint, identity=None):
+        self.socket = Socket(context, zmq.REP, identity=identity)
+        self.socket.connect(endpoint)
+        self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
         while not self.stop_signal:
             sockets = self._handle_poll()
             if self.control_socket in sockets:
                 self._handle_control_socket()
+            if self.socket in sockets:
+                self._handle_socket()
+
+    # def plug_controller(self, endpoint, context, identity=None):
+    #     self.control_socket = Socket(context, zmq.REQ, identity=identity)
+    #     self.control_socket.connect(endpoint)
+    #     self.control_socket.signal(Socket.SIGNAL_READY)
+    #     while not self.stop_signal:
+    #         sockets = self._handle_poll()
+    #         if self.control_socket in sockets:
+    #             self._handle_control_socket()

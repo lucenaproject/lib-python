@@ -35,9 +35,11 @@ class Controller(object):
 
 class NewController(object):
 
-    def __init__(self, slave):
+    def __init__(self, slave, slave_id, proxy_socket):
         self.context = zmq.Context.instance()
         self.slave = slave
+        self.slave_id = slave_id
+        self.proxy_socket = proxy_socket
         self.thread = None
         self.master_socket = None
 
@@ -54,7 +56,8 @@ class NewController(object):
         assert signal == Socket.SIGNAL_READY
 
     def stop(self, timeout=None):
-        self.master_socket.signal(Socket.SIGNAL_STOP)
+        self.proxy_socket.send_to_worker(self.slave_id, b'$controller', {'$signal': 'stop'})
+        # self.master_socket.signal(Socket.SIGNAL_STOP)
         self.thread.join(timeout=timeout)
         self.master_socket.close()
         self.thread = None

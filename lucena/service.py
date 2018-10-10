@@ -47,7 +47,7 @@ class Service(object):
         for i in range(number_of_workers):
             worker_id = 'worker#{}'.format(i).encode('utf8')
             worker = self.worker_factory()
-            controller = NewController(worker)
+            controller = NewController(worker, worker_id, self.proxy_socket)
             self.worker_controllers.append(controller)
             self.worker_ids.append(worker_id)
             self.worker_ready_ids.append(worker_id)
