@@ -67,6 +67,7 @@ class MessageHandler(object):
         self.poller = zmq.Poller()
         self.message_handlers = []
         self.bind_handler({}, self.default_handler)
+        self.bind_handler({'$signal': 'stop'}, self.default_handler)
         self.stop_signal = False
         self.control_socket = None
 
@@ -87,6 +88,13 @@ class MessageHandler(object):
         response = {}
         response.update(message)
         response.update({"$rep": None, "$error": "No handler match"})
+        return response
+
+    def stop_handler(self, message):
+        response = {}
+        response.update(message)
+        response.update({'$rep': 'OK'})
+        self.stop_signal = True
         return response
 
     def bind_handler(self, message, handler):
