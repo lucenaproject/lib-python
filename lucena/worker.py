@@ -8,18 +8,14 @@ from lucena.message_handler import MessageHandler
 class Worker(MessageHandler):
     def __init__(self):
         self.socket = None
-        self.control_socket = None
-        self.poller = zmq.Poller()
-        self.message_handlers = []
-        self.signal_stop = False
-        self.bind_handler({}, self.default_handler)
+        super(Worker, self).__init__()
 
     def controller_loop(self, control_socket, context, endpoint, identity=None):
         self.socket = Socket(context, zmq.REP, identity=identity)
         self.socket.connect(endpoint)
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
-        while not self.signal_stop:
+        while not self.stop_signal:
             sockets = self._handle_poll()
             if self.control_socket in sockets:
                 self._handle_control_socket()
@@ -33,13 +29,13 @@ class Worker(MessageHandler):
         )
         self.poller.register(
             self.socket,
-            zmq.POLLIN if not self.signal_stop else 0
+            zmq.POLLIN if not self.stop_signal else 0
         )
         return dict(self.poller.poll(.1))
 
     def _handle_control_socket(self):
         signal = self.control_socket.wait(timeout=10)
-        self.signal_stop = self.signal_stop or signal == Socket.SIGNAL_STOP
+        self.stop_signal = self.stop_signal or signal == Socket.SIGNAL_STOP
 
     def _handle_socket(self):
         client, message = self.socket.recv_from_client()
