@@ -2,7 +2,7 @@
 import zmq
 
 from lucena.io2.socket import Socket
-from lucena.message_handler import MessageHandlerPair, MessageHandler
+from lucena.message_handler import MessageHandler
 
 
 class Worker(MessageHandler):
@@ -13,20 +13,6 @@ class Worker(MessageHandler):
         self.message_handlers = []
         self.signal_stop = False
         self.bind_handler({}, self.default_handler)
-
-    @staticmethod
-    def default_handler(message):
-        response = {}
-        response.update(message)
-        response.update({"$rep": None, "$error": "No handler match"})
-        return response
-
-    def bind_handler(self, message, handler):
-        self.message_handlers.append(MessageHandlerPair(message, handler))
-        self.message_handlers.sort()
-
-    def bind_remote_handler(self, message, handler_endpoint):
-        raise NotImplementedError()
 
     def get_handler_for(self, message):
         for message_handler in self.message_handlers:
