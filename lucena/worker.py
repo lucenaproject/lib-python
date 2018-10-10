@@ -2,10 +2,10 @@
 import zmq
 
 from lucena.io2.socket import Socket
-from lucena.message_handler import MessageHandlerPair
+from lucena.message_handler import MessageHandlerPair, MessageHandler
 
 
-class Worker(object):
+class Worker(MessageHandler):
     def __init__(self):
         self.socket = None
         self.control_socket = None

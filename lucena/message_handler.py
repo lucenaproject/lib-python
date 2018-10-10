@@ -78,7 +78,6 @@ class MessageHandler(object):
         return dict(self.poller.poll(.1))
 
     def _handle_control_socket(self):
-        print("cccccccccccccc")
         client, message = self.control_socket.recv_from_client()
         response = self.resolve(message)
         self.control_socket.send_to_client(client, response)
