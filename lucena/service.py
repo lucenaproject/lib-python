@@ -21,7 +21,7 @@ class Service(object):
         self.socket = None
         self.control_socket = None
         self.proxy_socket = None
-        self.worker_controllers = None
+        self.worker_controller = None
         self.worker_ids = None
         self.worker_ready_ids = None
         self.signal_stop = False
@@ -33,7 +33,6 @@ class Service(object):
 
     def _plug(self, control_socket, number_of_workers):
         # Init worker queues
-        self.worker_controllers = []
         self.worker_ids = []
         self.worker_ready_ids = []
         # Init sockets
@@ -43,21 +42,18 @@ class Service(object):
         self.proxy_socket.bind(Socket.inproc_unique_endpoint())
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
+        self.worker_controller = WorkerController(self.proxy_socket)
         # Init workers
         for i in range(number_of_workers):
             worker_id = 'worker#{}'.format(i).encode('utf8')
             worker = self.worker_factory()
-            controller = WorkerController(worker, worker_id, self.proxy_socket)
-            self.worker_controllers.append(controller)
             self.worker_ids.append(worker_id)
             self.worker_ready_ids.append(worker_id)
-            controller.start()
+            self.worker_controller.start(worker, worker_id)
 
     def _unplug(self):
         self.socket.close()
-        while self.worker_controllers:
-            worker = self.worker_controllers.pop()
-            worker.stop()
+        self.worker_controller.stop()
         self.proxy_socket.close()
         self.control_socket.close()
 

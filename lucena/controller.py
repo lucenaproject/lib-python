@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import collections
 import threading
 
 import zmq
@@ -35,42 +36,44 @@ class Controller(object):
 
 class WorkerController(object):
 
-    def __init__(self, slave, slave_id, proxy_socket):
-        self.context = zmq.Context.instance()
-        self.slave = slave
-        self.slave_id = slave_id
-        self.proxy_socket = proxy_socket
-        self.thread = None
-        self.master_socket = None
-        self.workers = []
+    RunningWorker = collections.namedtuple('RunningWorker', ['worker', 'thread'])
 
-    def start(self):
+    def __init__(self, proxy_socket):
+        self.context = zmq.Context.instance()
+        self.proxy_socket = proxy_socket
+        self.master_socket = None
+        self.running_workers = {}
+
+    def start(self, worker, worker_id):
         # TODO: Support multiple workers in WorkerController.
+        assert worker_id not in self.running_workers
         self.master_socket, slave_socket = Socket.socket_pair(self.context)
-        self.thread = threading.Thread(
-            target=self.slave.controller_loop,
+        thread = threading.Thread(
+            target=worker.controller_loop,
             daemon=False,
             kwargs={
                 'context': self.context,
                 'endpoint': self.proxy_socket.last_endpoint,
-                'identity': self.slave_id
+                'identity': worker_id
             }
         )
-        self.thread.start()
-        worker, client, message = self.proxy_socket.recv_from_worker()
-        assert worker == self.slave_id
+        self.running_workers[worker_id] = self.RunningWorker(worker, thread)
+        thread.start()
+        _worker_id, client, message = self.proxy_socket.recv_from_worker()
+        assert _worker_id == worker_id
         assert client == b'$controller'
         assert message == {"$signal": "ready"}
 
     def stop(self, timeout=None):
-        self.proxy_socket.send_to_worker(self.slave_id, b'$controller', {'$signal': 'stop'})
-        worker, client, message = self.proxy_socket.recv_from_worker()
-        assert(worker == self.slave_id)
-        assert(client == b'$controller')
-        assert(message == {'$signal': 'stop', '$rep': 'OK'})
-        self.thread.join(timeout=timeout)
+        for worker_id, running_worker in self.running_workers.items():
+            self.proxy_socket.send_to_worker(worker_id, b'$controller', {'$signal': 'stop'})
+            _worker_id, client, message = self.proxy_socket.recv_from_worker()
+            assert(_worker_id == worker_id)
+            assert(client == b'$controller')
+            assert(message == {'$signal': 'stop', '$rep': 'OK'})
+            running_worker.thread.join(timeout=timeout)
+        self.running_workers = {}
         self.master_socket.close()
-        self.thread = None
 
 
 # class NewController(object):
