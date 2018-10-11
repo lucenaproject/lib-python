@@ -44,18 +44,18 @@ class NewController(object):
         self.master_socket = None
 
     def start(self, **kwargs):
-        # TODO: Implement signal in self.proxy_socket and remove control_socket from Worker.
         # TODO: Support multiple workers in NewController.
         self.master_socket, slave_socket = Socket.socket_pair(self.context)
         self.thread = threading.Thread(
             target=self.slave.controller_loop,
             daemon=False,
-            args=(slave_socket,),
             kwargs=kwargs
         )
         self.thread.start()
-        signal = self.master_socket.wait()
-        assert signal == Socket.SIGNAL_READY
+        worker, client, message = self.proxy_socket.recv_from_worker()
+        assert worker == self.slave_id
+        assert client == b'$controller'
+        assert message == {"$signal": "ready"}
 
     def stop(self, timeout=None):
         self.proxy_socket.send_to_worker(self.slave_id, b'$controller', {'$signal': 'stop'})
