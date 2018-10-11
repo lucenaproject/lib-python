@@ -51,11 +51,7 @@ class Service(object):
             self.worker_controllers.append(controller)
             self.worker_ids.append(worker_id)
             self.worker_ready_ids.append(worker_id)
-            controller.start(
-                context=self.context,
-                endpoint=self.proxy_socket.last_endpoint,
-                identity=worker_id
-            )
+            controller.start()
 
     def _unplug(self):
         self.socket.close()

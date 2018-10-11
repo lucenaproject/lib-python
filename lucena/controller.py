@@ -42,14 +42,19 @@ class WorkerController(object):
         self.proxy_socket = proxy_socket
         self.thread = None
         self.master_socket = None
+        self.workers = []
 
-    def start(self, **kwargs):
+    def start(self):
         # TODO: Support multiple workers in WorkerController.
         self.master_socket, slave_socket = Socket.socket_pair(self.context)
         self.thread = threading.Thread(
             target=self.slave.controller_loop,
             daemon=False,
-            kwargs=kwargs
+            kwargs={
+                'context': self.context,
+                'endpoint': self.proxy_socket.last_endpoint,
+                'identity': self.slave_id
+            }
         )
         self.thread.start()
         worker, client, message = self.proxy_socket.recv_from_worker()
