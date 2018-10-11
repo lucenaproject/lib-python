@@ -33,7 +33,7 @@ class Controller(object):
         self.thread = None
 
 
-class NewController(object):
+class WorkerController(object):
 
     def __init__(self, slave, slave_id, proxy_socket):
         self.context = zmq.Context.instance()
@@ -44,7 +44,7 @@ class NewController(object):
         self.master_socket = None
 
     def start(self, **kwargs):
-        # TODO: Support multiple workers in NewController.
+        # TODO: Support multiple workers in WorkerController.
         self.master_socket, slave_socket = Socket.socket_pair(self.context)
         self.thread = threading.Thread(
             target=self.slave.controller_loop,
@@ -59,10 +59,10 @@ class NewController(object):
 
     def stop(self, timeout=None):
         self.proxy_socket.send_to_worker(self.slave_id, b'$controller', {'$signal': 'stop'})
-        # worker, client, message = self.proxy_socket.recv_from_worker()
-        # assert(worker == self.slave_id)
-        # assert(client == b'$controller')
-        # assert(message == {'$signal': 'stop', '$rep': 'OK'})
+        worker, client, message = self.proxy_socket.recv_from_worker()
+        assert(worker == self.slave_id)
+        assert(client == b'$controller')
+        assert(message == {'$signal': 'stop', '$rep': 'OK'})
         self.thread.join(timeout=timeout)
         self.master_socket.close()
         self.thread = None

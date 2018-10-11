@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-import zmq
-
-from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
 
