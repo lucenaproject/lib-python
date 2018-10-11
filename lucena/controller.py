@@ -36,23 +36,22 @@ class Controller(object):
 
 class WorkerController(object):
 
-    RunningWorker = collections.namedtuple('RunningWorker', ['worker', 'thread'])
+    RunningWorker = collections.namedtuple(
+        'RunningWorker',
+        ['worker', 'thread']
+    )
 
     def __init__(self, proxy_socket):
-        self.context = zmq.Context.instance()
         self.proxy_socket = proxy_socket
-        self.master_socket = None
+        self.poller = zmq.Poller()
         self.running_workers = {}
 
     def start(self, worker, worker_id):
-        # TODO: Support multiple workers in WorkerController.
         assert worker_id not in self.running_workers
-        self.master_socket, slave_socket = Socket.socket_pair(self.context)
         thread = threading.Thread(
             target=worker.controller_loop,
             daemon=False,
             kwargs={
-                'context': self.context,
                 'endpoint': self.proxy_socket.last_endpoint,
                 'identity': worker_id
             }
@@ -66,14 +65,16 @@ class WorkerController(object):
 
     def stop(self, timeout=None):
         for worker_id, running_worker in self.running_workers.items():
-            self.proxy_socket.send_to_worker(worker_id, b'$controller', {'$signal': 'stop'})
+            self.proxy_socket.send_to_worker(
+                worker_id,
+                b'$controller', {'$signal': 'stop'}
+            )
             _worker_id, client, message = self.proxy_socket.recv_from_worker()
             assert(_worker_id == worker_id)
             assert(client == b'$controller')
             assert(message == {'$signal': 'stop', '$rep': 'OK'})
             running_worker.thread.join(timeout=timeout)
         self.running_workers = {}
-        self.master_socket.close()
 
 
 # class NewController(object):

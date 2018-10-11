@@ -64,6 +64,7 @@ class MessageHandlerPair(object):
 class MessageHandler(object):
 
     def __init__(self):
+        self.context = zmq.Context.instance()
         self.poller = zmq.Poller()
         self.message_handlers = []
         self.bind_handler({}, self.default_handler)
@@ -111,8 +112,8 @@ class MessageHandler(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def controller_loop(self, context, endpoint, identity=None):
-        self.socket = Socket(context, zmq.REQ, identity=identity)
+    def controller_loop(self, endpoint, identity=None):
+        self.socket = Socket(self.context, zmq.REQ, identity=identity)
         self.socket.connect(endpoint)
         self.socket.send_to_client(b'$controller', {"$signal": "ready"})
         while not self.stop_signal:
