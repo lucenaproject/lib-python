@@ -80,8 +80,8 @@ class WorkerController(object):
         self.context = zmq.Context.instance()
         self.poller = zmq.Poller()
         self.running_workers = {}
-        self.proxy_socket = Socket(self.context, zmq.ROUTER)
-        self.proxy_socket.bind(Socket.inproc_unique_endpoint())
+        self.control_socket = Socket(self.context, zmq.ROUTER)
+        self.control_socket.bind(Socket.inproc_unique_endpoint())
 
     def start(self, worker, worker_id):
         assert worker_id not in self.running_workers
@@ -89,24 +89,24 @@ class WorkerController(object):
             target=worker.controller_loop,
             daemon=False,
             kwargs={
-                'endpoint': self.proxy_socket.last_endpoint,
+                'endpoint': self.control_socket.last_endpoint,
                 'identity': worker_id
             }
         )
         self.running_workers[worker_id] = self.RunningWorker(worker, thread)
         thread.start()
-        _worker_id, client, message = self.proxy_socket.recv_from_worker()
+        _worker_id, client, message = self.control_socket.recv_from_worker()
         assert _worker_id == worker_id
         assert client == b'$controller'
         assert message == {"$signal": "ready"}
 
     def stop(self, timeout=None):
         for worker_id, running_worker in self.running_workers.items():
-            self.proxy_socket.send_to_worker(
+            self.control_socket.send_to_worker(
                 worker_id,
                 b'$controller', {'$signal': 'stop'}
             )
-            _worker_id, client, message = self.proxy_socket.recv_from_worker()
+            _worker_id, client, message = self.control_socket.recv_from_worker()
             assert(_worker_id == worker_id)
             assert(client == b'$controller')
             assert(message == {'$signal': 'stop', '$rep': 'OK'})
@@ -115,16 +115,16 @@ class WorkerController(object):
 
     def message_queued(self, timeout=0.01):
         self.poller.register(
-            self.proxy_socket,
+            self.control_socket,
             zmq.POLLIN
         )
         return bool(self.poller.poll(timeout))
 
     def send(self, worker, client, message):
-        return self.proxy_socket.send_to_worker(worker, client, message)
+        return self.control_socket.send_to_worker(worker, client, message)
 
     def recv(self):
-        return self.proxy_socket.recv_from_worker()
+        return self.control_socket.recv_from_worker()
 
 
 class MathWorker(Worker):
@@ -145,11 +145,13 @@ class MathWorker(Worker):
 
 
 if __name__ == '__main__':
-    worker = MathWorker()
-    response_message = worker.resolve({
-        "$service": "math",
-        "$req": "sum",
-        "a": 100,
-        "b": 20
-    })
-    print(response_message)
+    def main():
+        worker = MathWorker()
+        response_message = worker.resolve({
+            "$service": "math",
+            "$req": "sum",
+            "a": 100,
+            "b": 20
+        })
+        print(response_message)
+    main()
