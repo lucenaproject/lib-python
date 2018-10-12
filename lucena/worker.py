@@ -17,19 +17,19 @@ class Worker(object):
         self.bind_handler({}, self.default_handler)
         self.bind_handler({'$signal': 'stop'}, self.stop_handler)
         self.stop_signal = False
-        self.socket = None
+        self.control_socket = None
 
     def _handle_poll(self):
         self.poller.register(
-            self.socket,
+            self.control_socket,
             zmq.POLLIN if not self.stop_signal else 0
         )
         return dict(self.poller.poll(.1))
 
     def _handle_socket(self):
-        client, message = self.socket.recv_from_client()
+        client, message = self.control_socket.recv_from_client()
         response = self.resolve(message)
-        self.socket.send_to_client(client, response)
+        self.control_socket.send_to_client(client, response)
 
     @staticmethod
     def default_handler(message):
@@ -60,12 +60,12 @@ class Worker(object):
         return handler(message)
 
     def controller_loop(self, endpoint, identity=None):
-        self.socket = Socket(self.context, zmq.REQ, identity=identity)
-        self.socket.connect(endpoint)
-        self.socket.send_to_client(b'$controller', {"$signal": "ready"})
+        self.control_socket = Socket(self.context, zmq.REQ, identity=identity)
+        self.control_socket.connect(endpoint)
+        self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
         while not self.stop_signal:
             sockets = self._handle_poll()
-            if self.socket in sockets:
+            if self.control_socket in sockets:
                 self._handle_socket()
 
 

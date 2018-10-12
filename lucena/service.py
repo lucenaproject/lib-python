@@ -18,9 +18,11 @@ class Service(Worker):
         self.endpoint = endpoint if endpoint is not None \
             else "ipc://{}.ipc".format(tempfile.NamedTemporaryFile().name)
         self.number_of_workers = number_of_workers
+
         self.socket = None
         self.control_socket = None
         self.worker_controller = None
+
         self.worker_ready_ids = None
         self.total_client_requests = 0
 
