@@ -76,29 +76,34 @@ class WorkerController(object):
         ['worker', 'thread']
     )
 
-    def __init__(self):
+    def __init__(self, worker_factory, number_of_workers=1):
         self.context = zmq.Context.instance()
+        self.worker_factory = worker_factory
+        self.number_of_workers=number_of_workers
         self.poller = zmq.Poller()
         self.running_workers = {}
         self.control_socket = Socket(self.context, zmq.ROUTER)
         self.control_socket.bind(Socket.inproc_unique_endpoint())
 
-    def start(self, worker, worker_id):
-        assert worker_id not in self.running_workers
-        thread = threading.Thread(
-            target=worker.controller_loop,
-            daemon=False,
-            kwargs={
-                'endpoint': self.control_socket.last_endpoint,
-                'identity': worker_id
-            }
-        )
-        self.running_workers[worker_id] = self.RunningWorker(worker, thread)
-        thread.start()
-        _worker_id, client, message = self.control_socket.recv_from_worker()
-        assert _worker_id == worker_id
-        assert client == b'$controller'
-        assert message == {"$signal": "ready"}
+    def start(self):
+        for i in range(self.number_of_workers):
+            worker = self.worker_factory()
+            worker_id = 'worker#{}'.format(i).encode('utf8')
+            thread = threading.Thread(
+                target=worker.controller_loop,
+                daemon=False,
+                kwargs={
+                    'endpoint': self.control_socket.last_endpoint,
+                    'identity': worker_id
+                }
+            )
+            self.running_workers[worker_id] = self.RunningWorker(worker, thread)
+            thread.start()
+            _worker_id, client, message = self.control_socket.recv_from_worker()
+            assert _worker_id == worker_id
+            assert client == b'$controller'
+            assert message == {"$signal": "ready"}
+        return list(self.running_workers.keys())
 
     def stop(self, timeout=None):
         for worker_id, running_worker in self.running_workers.items():

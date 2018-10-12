@@ -34,13 +34,8 @@ class Service(Worker):
         self.socket.bind(self.endpoint)
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
-        self.worker_controller = WorkerController()
-        # Init workers
-        for i in range(number_of_workers):
-            worker_id = 'worker#{}'.format(i).encode('utf8')
-            worker = self.worker_factory()
-            self.worker_ready_ids.append(worker_id)
-            self.worker_controller.start(worker, worker_id)
+        self.worker_controller = WorkerController(self.worker_factory, self.number_of_workers)
+        self.worker_ready_ids = self.worker_controller.start()
 
     def _unplug(self):
         self.socket.close()
