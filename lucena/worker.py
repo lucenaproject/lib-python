@@ -26,7 +26,7 @@ class Worker(object):
         )
         return dict(self.poller.poll(.1))
 
-    def _handle_socket(self):
+    def _handle_ctrl_socket(self):
         client, message = self.control_socket.recv_from_client()
         response = self.resolve(message)
         self.control_socket.send_to_client(client, response)
@@ -66,7 +66,7 @@ class Worker(object):
         while not self.stop_signal:
             sockets = self._handle_poll()
             if self.control_socket in sockets:
-                self._handle_socket()
+                self._handle_ctrl_socket()
 
 
 class WorkerController(object):
