@@ -5,16 +5,15 @@ import zmq
 
 from lucena.controller import Controller
 from lucena.io2.socket import Socket
-from lucena.worker import WorkerController
+from lucena.worker import Worker, WorkerController
 
 
-class Service(object):
+class Service(Worker):
 
     def __init__(self, worker_factory, endpoint=None, number_of_workers=1):
         # http://zguide.zeromq.org/page:all#Getting-the-Context-Right
         # You should create and use exactly one context in your process.
-        self.context = zmq.Context.instance()
-        self.poller = zmq.Poller()
+        super(Service, self).__init__()
         self.worker_factory = worker_factory
         self.endpoint = endpoint if endpoint is not None \
             else "ipc://{}.ipc".format(tempfile.NamedTemporaryFile().name)
@@ -23,7 +22,6 @@ class Service(object):
         self.control_socket = None
         self.worker_controller = None
         self.worker_ready_ids = None
-        self.signal_stop = False
         self.total_client_requests = 0
 
     def _plug(self, control_socket, number_of_workers):
@@ -54,7 +52,7 @@ class Service(object):
         )
         self.poller.register(
             self.socket,
-            zmq.POLLIN if self.worker_ready_ids and not self.signal_stop else 0
+            zmq.POLLIN if self.worker_ready_ids and not self.stop_signal else 0
         )
         return dict(self.poller.poll(.1))
 
@@ -67,7 +65,7 @@ class Service(object):
 
     def _handle_control_socket(self):
         signal = self.control_socket.wait(timeout=10)
-        self.signal_stop = self.signal_stop or signal == Socket.SIGNAL_STOP
+        self.stop_signal = self.stop_signal or signal == Socket.SIGNAL_STOP
 
     def _handle_worker_controller(self):
         worker_id, client, reply = self.worker_controller.recv()
@@ -76,7 +74,7 @@ class Service(object):
 
     def controller_loop(self, control_socket):
         self._plug(control_socket, self.number_of_workers)
-        while not self.signal_stop or self.pending_workers():
+        while not self.stop_signal or self.pending_workers():
             sockets = self._handle_poll()
             if self.control_socket in sockets:
                 self._handle_control_socket()
