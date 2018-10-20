@@ -34,8 +34,8 @@ class Service(Worker):
         self.socket.bind(self.endpoint)
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
-        self.worker_controller = WorkerController(self.worker_factory, self.number_of_workers)
-        self.worker_ready_ids = self.worker_controller.start()
+        self.worker_controller = WorkerController(self.worker_factory)
+        self.worker_ready_ids = self.worker_controller.start(number_of_workers)
 
     def _unplug(self):
         self.socket.close()

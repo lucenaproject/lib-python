@@ -76,17 +76,16 @@ class WorkerController(object):
         ['worker', 'thread']
     )
 
-    def __init__(self, worker_factory, number_of_workers=1):
+    def __init__(self, worker_factory):
         self.context = zmq.Context.instance()
         self.worker_factory = worker_factory
-        self.number_of_workers=number_of_workers
         self.poller = zmq.Poller()
         self.running_workers = {}
         self.control_socket = Socket(self.context, zmq.ROUTER)
         self.control_socket.bind(Socket.inproc_unique_endpoint())
 
-    def start(self):
-        for i in range(self.number_of_workers):
+    def start(self, number_of_workers=1):
+        for i in range(number_of_workers):
             worker = self.worker_factory()
             worker_id = 'worker#{}'.format(i).encode('utf8')
             thread = threading.Thread(
