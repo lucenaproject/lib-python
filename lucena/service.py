@@ -3,9 +3,9 @@ import tempfile
 
 import zmq
 
-from lucena.controller import Controller
+from lucena.controller import Controller, Controller2
 from lucena.io2.socket import Socket
-from lucena.worker import Worker, WorkerController
+from lucena.worker import Worker
 
 
 class Service(Worker):
@@ -34,7 +34,7 @@ class Service(Worker):
         self.socket.bind(self.endpoint)
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
-        self.worker_controller = WorkerController(self.worker_factory)
+        self.worker_controller = Controller2(self.worker_factory)
         self.worker_ready_ids = self.worker_controller.start(number_of_workers)
 
     def _unplug(self):
