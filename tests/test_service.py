@@ -33,13 +33,16 @@ class TestClientService(unittest.TestCase):
             b'{"$req": "HELLO", "$rep": null, "$error": "No handler match"}'
         )
 
-    # def test_total_client_requests(self):
-    #     client_requests = 256
-    #     self.service.start()
-    #     for i in range(client_requests):
-    #         self.client_task(i)
-    #     self.assertEqual(client_requests, self.service.slave.total_client_requests)
-    #     self.service.stop()
+    def test_total_client_requests(self):
+        client_requests = 2
+        self.service.start()
+        for i in range(client_requests):
+            self.client_task(i)
+
+        self.service.send({'$req': 'eval', '$attr': 'total_client_requests'})
+        reply = self.service.recv()
+        self.assertEqual(client_requests, reply.get('$rep'))
+        self.service.stop()
 
     def test_service_restart(self):
         for i in range(10):
