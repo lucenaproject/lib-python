@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import tempfile
 import unittest
 
 import zmq
@@ -11,9 +12,11 @@ class TestClientService(unittest.TestCase):
 
     def setUp(self):
         super(TestClientService, self).setUp()
+        self.endpoint = "ipc://{}.ipc".format(tempfile.NamedTemporaryFile().name)
         self.service = create_service(
             Worker,
-            number_of_workers=4
+            number_of_workers=4,
+            endpoint=self.endpoint
         )
 
     def client_task(self, client_name):
@@ -22,7 +25,7 @@ class TestClientService(unittest.TestCase):
         """
         socket = zmq.Context.instance().socket(zmq.REQ)
         socket.identity = u"client-{}".format(client_name).encode("ascii")
-        socket.connect(self.service.slave.endpoint)
+        socket.connect(self.endpoint)
         socket.send(b'{"$req": "HELLO"}')
         reply = socket.recv()
         self.assertEqual(
@@ -31,15 +34,17 @@ class TestClientService(unittest.TestCase):
         )
 
     def test_total_client_requests(self):
-        client_requests = 256
+        client_requests = 2
         self.service.start()
         for i in range(client_requests):
             self.client_task(i)
-        self.assertEqual(client_requests, self.service.slave.total_client_requests)
+
+        self.service.send({'$req': 'eval', '$attr': 'total_client_requests'})
+        reply = self.service.recv()
+        self.assertEqual(client_requests, reply.get('$rep'))
         self.service.stop()
 
     def test_service_restart(self):
         for i in range(10):
-            self.assertEqual(self.service.thread, None)
             self.service.start()
             self.service.stop()

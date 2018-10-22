@@ -23,7 +23,4 @@ class TestWorker(unittest.TestCase):
         message = {'a': 123}
         worker = Worker()
         handler = worker.get_handler_for(message)
-        self.assertEqual(
-            handler,
-            Worker.default_handler
-        )
+        self.assertEqual(handler, Worker.handler_default)
