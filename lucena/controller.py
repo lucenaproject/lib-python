@@ -66,7 +66,7 @@ class Controller(object):
 
     def eval(self):
         pass
-    
+
     def start(self, **kwargs):
         # TODO: Raise an error if already started.
         number_of_slaves = kwargs.get('number_of_slaves')
