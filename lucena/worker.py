@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+import collections
+import re
+import threading
+
 import zmq
 
 from lucena.io2.socket import Socket
@@ -64,6 +68,75 @@ class Worker(object):
             sockets = self._handle_poll()
             if self.control_socket in sockets:
                 self._handle_ctrl_socket()
+
+
+class WorkerController(object):
+
+    RunningWorker = collections.namedtuple(
+        'RunningWorker',
+        ['worker', 'thread']
+    )
+
+    def __init__(self, worker, *args, **kwargs):
+        self.context = zmq.Context.instance()
+        self.worker = worker
+        self.args = args
+        self.kwargs = kwargs
+        self.poller = zmq.Poller()
+        self.running_workers = {}
+        self.control_socket = Socket(self.context, zmq.ROUTER)
+        self.control_socket.bind(Socket.inproc_unique_endpoint())
+
+    def identity_for(self, index=0):
+        id1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', self.worker.__name__)
+        id2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', id1).lower()
+        return '{}#{}'.format(id2, index).encode('utf8')
+
+    def start(self, number_of_workers=1):
+        for i in range(number_of_workers):
+            worker = self.worker(*self.args, **self.kwargs)
+            worker_id = self.identity_for(i)
+            thread = threading.Thread(
+                target=worker.controller_loop,
+                daemon=False,
+                kwargs={
+                    'endpoint': self.control_socket.last_endpoint,
+                    'identity': worker_id
+                }
+            )
+            self.running_workers[worker_id] = self.RunningWorker(worker, thread)
+            thread.start()
+            _worker_id, client, message = self.control_socket.recv_from_worker()
+            assert _worker_id == worker_id
+            assert client == b'$controller'
+            assert message == {"$signal": "ready"}
+        return list(self.running_workers.keys())
+
+    def stop(self, timeout=None):
+        for worker_id, running_worker in self.running_workers.items():
+            self.control_socket.send_to_worker(
+                worker_id,
+                b'$controller', {'$signal': 'stop'}
+            )
+            _worker_id, client, message = self.control_socket.recv_from_worker()
+            assert(_worker_id == worker_id)
+            assert(client == b'$controller')
+            assert(message == {'$signal': 'stop', '$rep': 'OK'})
+            running_worker.thread.join(timeout=timeout)
+        self.running_workers = {}
+
+    def message_queued(self, timeout=0.01):
+        self.poller.register(
+            self.control_socket,
+            zmq.POLLIN
+        )
+        return bool(self.poller.poll(timeout))
+
+    def send(self, worker, client, message):
+        return self.control_socket.send_to_worker(worker, client, message)
+
+    def recv(self):
+        return self.control_socket.recv_from_worker()
 
 
 class MathWorker(Worker):

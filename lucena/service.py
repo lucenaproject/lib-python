@@ -3,9 +3,8 @@ import tempfile
 
 import zmq
 
-from lucena.controller import Controller
 from lucena.io2.socket import Socket
-from lucena.worker import Worker
+from lucena.worker import Worker, WorkerController
 
 
 class Service(Worker):
@@ -20,7 +19,6 @@ class Service(Worker):
         self.number_of_workers = number_of_workers
 
         self.socket = None
-        self.control_socket = None
         self.worker_controller = None
 
         self.worker_ready_ids = None
@@ -34,7 +32,7 @@ class Service(Worker):
         self.socket.bind(self.endpoint)
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
-        self.worker_controller = Controller(self.worker_factory)
+        self.worker_controller = WorkerController(self.worker_factory)
         self.worker_ready_ids = self.worker_controller.start(number_of_workers)
 
     def _unplug(self):
@@ -74,7 +72,7 @@ class Service(Worker):
         self.socket = Socket(self.context, zmq.ROUTER)
         self.socket.bind(self.endpoint)
 
-        self.worker_controller = Controller(self.worker_factory)
+        self.worker_controller = WorkerController(self.worker_factory)
         self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
         ##
 
@@ -93,39 +91,24 @@ class Service(Worker):
 
         self._unplug()
 
-    # def controller_loop_old(self, control_socket):
-    #     self._plug(control_socket, self.number_of_workers)
-    #     while not self.stop_signal or self.pending_workers():
-    #         sockets = self._handle_poll()
-    #         if self.control_socket in sockets:
-    #             self._handle_control_socket()
-    #         if self.socket in sockets:
-    #             self._handle_socket()
-    #         if self.worker_controller.message_queued():
-    #             self._handle_worker_controller()
-    #     self._unplug()
-
     def pending_workers(self):
         return self.worker_ready_ids is not None and \
                len(self.worker_ready_ids) < self.number_of_workers
 
 
+class ServiceController(WorkerController):
+
+    def start(self, number_of_services=1):
+        if not number_of_services == 1:
+            raise ValueError("Only one Service can be started by a ServiceController.")
+        return super(ServiceController, self).start(number_of_workers=1)
+
+
 def create_service(worker_factory=None, endpoint=None, number_of_workers=1):
-    # service = Service(worker_factory, endpoint, number_of_workers)
-    controller = Controller(
+    controller = ServiceController(
         Service,
         worker_factory,
         endpoint=endpoint,
         number_of_workers=number_of_workers
     )
     return controller
-
-
-def main():
-    from lucena.worker import Worker
-    service = create_service(Worker)
-    service.start()
-
-
-if __name__ == '__main__':
-    main()
