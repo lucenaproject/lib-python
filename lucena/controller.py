@@ -64,6 +64,9 @@ class Controller(object):
         id2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', id1).lower()
         return '{}#{}'.format(id2, index).encode('utf8')
 
+    def eval(self):
+        pass
+    
     def start(self, **kwargs):
         # TODO: Raise an error if already started.
         number_of_slaves = kwargs.get('number_of_slaves')
