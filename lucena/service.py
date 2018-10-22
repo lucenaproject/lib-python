@@ -33,7 +33,7 @@ class Service(Worker):
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
         self.worker_controller = WorkerController(self.worker_factory)
-        self.worker_ready_ids = self.worker_controller.start(number_of_workers)
+        self.worker_ready_ids = self.worker_controller.start(number_of_slaves=number_of_workers)
 
     def _unplug(self):
         self.socket.close()
@@ -73,7 +73,9 @@ class Service(Worker):
         self.socket.bind(self.endpoint)
 
         self.worker_controller = WorkerController(self.worker_factory)
-        self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
+        self.worker_ready_ids = self.worker_controller.start(
+            number_of_slaves=self.number_of_workers
+        )
         ##
 
         self.control_socket = Socket(self.context, zmq.REQ, identity=identity)
@@ -101,7 +103,14 @@ class ServiceController(WorkerController):
     def start(self, number_of_services=1):
         if not number_of_services == 1:
             raise ValueError("Only one Service can be started by a ServiceController.")
-        return super(ServiceController, self).start(number_of_workers=1)
+        return super(ServiceController, self).start(number_of_slaves=1)
+
+    def send(self, message):
+        worker = 'contro'
+        return self.control_socket.send_to_worker(worker, 'controller', message)
+
+    def recv(self):
+        return self.control_socket.recv_from_worker()
 
 
 def create_service(worker_factory=None, endpoint=None, number_of_workers=1):
