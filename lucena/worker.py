@@ -8,12 +8,26 @@ from lucena.message_handler import MessageHandler
 
 class Worker(object):
 
+    class Controller(Controller):
+        def __init__(self, *args, **kwargs):
+            super(Worker.Controller, self).__init__(Worker, *args, **kwargs)
+
+        def send(self, worker_id, client_id, message):
+            return super(Worker.Controller, self).send(
+                message=message,
+                client_id=client_id,
+                slave_id=worker_id
+            )
+
+    # Worker implementation.
+
     def __init__(self, *args, **kwargs):
         self.context = zmq.Context.instance()
         self.poller = zmq.Poller()
         self.message_handlers = []
-        self.bind_handler({}, self.default_handler)
-        self.bind_handler({'$signal': 'stop'}, self.stop_handler)
+        self.bind_handler({}, self.handler_default)
+        self.bind_handler({'$signal': 'stop'}, self.handler_stop)
+        self.bind_handler({'$req': 'eval'}, self.handler_eval)
         self.stop_signal = False
         self.control_socket = None
 
@@ -30,13 +44,20 @@ class Worker(object):
         self.control_socket.send_to_client(client, response)
 
     @staticmethod
-    def default_handler(message):
+    def handler_default(message):
         response = {}
         response.update(message)
         response.update({"$rep": None, "$error": "No handler match"})
         return response
 
-    def stop_handler(self, message):
+    def handler_eval(self, message):
+        response = {}
+        response.update(message)
+        attr = getattr(self, message.get('$attr'))
+        response.update({'$rep': attr})
+        return response
+
+    def handler_stop(self, message):
         response = {}
         response.update(message)
         response.update({'$rep': 'OK'})
@@ -65,10 +86,6 @@ class Worker(object):
             sockets = self._handle_poll()
             if self.control_socket in sockets:
                 self._handle_ctrl_socket()
-
-
-class WorkerController(Controller):
-    pass
 
 
 class MathWorker(Worker):

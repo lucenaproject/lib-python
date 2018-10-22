@@ -3,11 +3,36 @@ import tempfile
 
 import zmq
 
+from lucena.controller import Controller
 from lucena.io2.socket import Socket
-from lucena.worker import Worker, WorkerController
+from lucena.worker import Worker
 
 
 class Service(Worker):
+
+    class Controller(Controller):
+
+        def __init__(self, *args, **kwargs):
+            super(Service.Controller, self).__init__(Service, *args, **kwargs)
+            self.service_id = self.identity_for(index=0)
+
+        def start(self):
+            return super(Service.Controller, self).start(number_of_slaves=1)
+
+        def send(self, message):
+            return super(Service.Controller, self).send(
+                message=message,
+                client_id=b'$controller',
+                slave_id=self.service_id
+            )
+
+        def recv(self):
+            worker, client, message = self.control_socket.recv_from_worker()
+            assert client == b'$controller'
+            assert worker == self.service_id
+            return message
+
+    # Service implementation.
 
     def __init__(self, worker_factory, endpoint=None, number_of_workers=1):
         # http://zguide.zeromq.org/page:all#Getting-the-Context-Right
@@ -32,7 +57,7 @@ class Service(Worker):
         self.socket.bind(self.endpoint)
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
-        self.worker_controller = WorkerController(self.worker_factory)
+        self.worker_controller = Worker.Controller(self.worker_factory)
         self.worker_ready_ids = self.worker_controller.start(number_of_slaves=number_of_workers)
 
     def _unplug(self):
@@ -72,7 +97,7 @@ class Service(Worker):
         self.socket = Socket(self.context, zmq.ROUTER)
         self.socket.bind(self.endpoint)
 
-        self.worker_controller = WorkerController(self.worker_factory)
+        self.worker_controller = Worker.Controller(self.worker_factory)
         self.worker_ready_ids = self.worker_controller.start(
             number_of_slaves=self.number_of_workers
         )
@@ -98,26 +123,22 @@ class Service(Worker):
                len(self.worker_ready_ids) < self.number_of_workers
 
 
-class ServiceController(WorkerController):
-
-    def start(self, number_of_services=1):
-        if not number_of_services == 1:
-            raise ValueError("Only one Service can be started by a ServiceController.")
-        return super(ServiceController, self).start(number_of_slaves=1)
-
-    def send(self, message):
-        worker = 'contro'
-        return self.control_socket.send_to_worker(worker, 'controller', message)
-
-    def recv(self):
-        return self.control_socket.recv_from_worker()
-
-
 def create_service(worker_factory=None, endpoint=None, number_of_workers=1):
-    controller = ServiceController(
-        Service,
+    return Service.Controller(
         worker_factory,
         endpoint=endpoint,
         number_of_workers=number_of_workers
     )
-    return controller
+
+
+def main():
+    service = create_service(Worker)
+    service.start()
+    service.send({'$req': 'eval', '$attr': 'total_client_requests'})
+    rep = service.recv()
+    service.stop()
+    print(rep)
+
+
+if __name__ == '__main__':
+    main()

@@ -49,7 +49,8 @@ class Controller(object):
         for slave_id, running_worker in self.running_slaves.items():
             self.control_socket.send_to_worker(
                 slave_id,
-                b'$controller', {'$signal': 'stop'}
+                b'$controller',
+                {'$signal': 'stop'}
             )
             _worker_id, client, message = self.control_socket.recv_from_worker()
             assert(_worker_id == slave_id)
@@ -64,6 +65,7 @@ class Controller(object):
         return '{}#{}'.format(id2, index).encode('utf8')
 
     def start(self, **kwargs):
+        # TODO: Raise an error if already started.
         number_of_slaves = kwargs.get('number_of_slaves')
         assert number_of_slaves is not None
         return self._start(number_of_slaves)
@@ -72,14 +74,18 @@ class Controller(object):
         timeout = kwargs.get('timeout')
         return self._stop(timeout)
 
-    def send(self, message, **kwargs):
-        worker = kwargs.get('worker')
-        client = kwargs.get('client')
-        assert worker is not None
-        assert client is not None
-        return self.control_socket.send_to_worker(worker, client, message)
+    def send(self, **kwargs):
+        # TODO: Raise an error if not started.
+        message = kwargs.get('message')
+        slave_id = kwargs.get('slave_id')
+        client_id = kwargs.get('client_id')
+        assert message is not None
+        assert slave_id is not None
+        assert client_id is not None
+        return self.control_socket.send_to_worker(slave_id, client_id, message)
 
     def recv(self):
+        # TODO: Raise an error if not started.
         return self.control_socket.recv_from_worker()
 
     def message_queued(self, timeout=0.01):
