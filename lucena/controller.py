@@ -73,7 +73,6 @@ class Controller(object):
         pass
 
     def start(self, **kwargs):
-        # TODO: Raise an error if already started.
         number_of_slaves = kwargs.get('number_of_slaves')
         assert number_of_slaves is not None
         return self._start(number_of_slaves)
