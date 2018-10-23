@@ -58,7 +58,7 @@ class Service(Worker):
         self.control_socket = control_socket
         self.control_socket.signal(Socket.SIGNAL_READY)
         self.worker_controller = Worker.Controller(self.worker_factory)
-        self.worker_ready_ids = self.worker_controller.start(number_of_slaves=number_of_workers)
+        self.worker_ready_ids = self.worker_controller.start(number_of_workers)
 
     def _unplug(self):
         self.socket.close()
@@ -98,9 +98,7 @@ class Service(Worker):
         self.socket.bind(self.endpoint)
 
         self.worker_controller = Worker.Controller(self.worker_factory)
-        self.worker_ready_ids = self.worker_controller.start(
-            number_of_slaves=self.number_of_workers
-        )
+        self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
         ##
 
         self.control_socket = Socket(self.context, zmq.REQ, identity=identity)

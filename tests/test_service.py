@@ -34,7 +34,7 @@ class TestClientService(unittest.TestCase):
         )
 
     def test_total_client_requests(self):
-        client_requests = 2
+        client_requests = 256
         self.service.start()
         for i in range(client_requests):
             self.client_task(i)

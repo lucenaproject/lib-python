@@ -5,6 +5,7 @@ import threading
 
 import zmq
 
+from lucena.exceptions import AlreadyStarted
 from lucena.io2.socket import Socket
 
 
@@ -26,6 +27,10 @@ class Controller(object):
         self.control_socket.bind(Socket.inproc_unique_endpoint())
 
     def _start(self, number_of_slaves=1):
+        if self.running_slaves:
+            raise AlreadyStarted()
+        if number_of_slaves < 1:
+            raise ValueError("")
         for i in range(number_of_slaves):
             slave = self.slave(*self.args, **self.kwargs)
             slave_id = self.identity_for(i)

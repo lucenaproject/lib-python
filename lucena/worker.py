@@ -12,6 +12,11 @@ class Worker(object):
         def __init__(self, *args, **kwargs):
             super(Worker.Controller, self).__init__(Worker, *args, **kwargs)
 
+        def start(self, number_of_workers=1):
+            return super(Worker.Controller, self).start(
+                number_of_slaves=number_of_workers
+            )
+
         def send(self, worker_id, client_id, message):
             return super(Worker.Controller, self).send(
                 message=message,
