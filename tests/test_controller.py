@@ -9,6 +9,7 @@ class TestWorkerController(unittest.TestCase):
 
     def test_worker_controller_start(self):
         pass
+    
 
     def test_start_worker_fails_if_already_started(self):
         controller = Worker.Controller()
