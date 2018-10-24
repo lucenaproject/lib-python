@@ -1,30 +1,80 @@
 # -*- coding: utf-8 -*-
+import collections
+import re
+import threading
 import zmq
 
-from lucena.controller import Controller
+from lucena.exceptions import AlreadyStarted
 from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
 
 class Worker(object):
 
-    MAX_START_INSTANCES = 128
+    class Controller(object):
 
-    class Controller(Controller):
+        RunningWorker = collections.namedtuple(
+            'RunningWorker',
+            ['worker', 'thread']
+        )
+
         def __init__(self, *args, **kwargs):
-            super(Worker.Controller, self).__init__(Worker, *args, **kwargs)
+            self.context = zmq.Context.instance()
+            self.args = args
+            self.kwargs = kwargs
+            self.poller = zmq.Poller()
+            self.running_workers = {}
+            self.control_socket = Socket(self.context, zmq.ROUTER)
+            self.control_socket.bind(Socket.inproc_unique_endpoint())
 
         def start(self, number_of_workers=1):
-            return super(Worker.Controller, self).start(
-                number_of_slaves=number_of_workers
-            )
+            if self.running_workers:
+                raise AlreadyStarted()
+            if number_of_workers < 1:
+                raise ValueError("")
+            for i in range(number_of_workers):
+                worker = Worker(*self.args, **self.kwargs)
+                thread = threading.Thread(
+                    target=worker.controller_loop,
+                    daemon=False,
+                    kwargs={
+                        'endpoint': self.control_socket.last_endpoint,
+                        'index': i
+                    }
+                )
+                thread.start()
+                identity, client, message = self.recv()
+                assert identity == worker.identity(i)
+                assert client == b'$controller'
+                assert message == {"$signal": "ready"}
+                self.running_workers[identity] = self.RunningWorker(worker, thread)
+            return list(self.running_workers.keys())
+
+        def stop(self, timeout=None):
+            for worker_id, running_worker in self.running_workers.items():
+                self.send(worker_id, b'$controller', {'$signal': 'stop'})
+                _worker_id, client, message = self.recv()
+                assert _worker_id == worker_id
+                assert client == b'$controller'
+                assert message == {'$signal': 'stop', '$rep': 'OK'}
+                running_worker.thread.join(timeout=timeout)
+            self.running_workers = {}
 
         def send(self, worker_id, client_id, message):
-            return super(Worker.Controller, self).send(
-                message=message,
-                client_id=client_id,
-                slave_id=worker_id
+            # TODO: Raise an error if not started.
+            return self.control_socket.send_to_worker(worker_id, client_id, message)
+
+        def recv(self):
+            # TODO: Raise an error if not started.
+            worker, client, message = self.control_socket.recv_from_worker()
+            return worker, client, message
+
+        def message_queued(self, timeout=0.01):
+            self.poller.register(
+                self.control_socket,
+                zmq.POLLIN
             )
+            return bool(self.poller.poll(timeout))
 
     # Worker implementation.
 
@@ -49,6 +99,12 @@ class Worker(object):
         client, message = self.control_socket.recv_from_client()
         response = self.resolve(message)
         self.control_socket.send_to_client(client, response)
+
+    @classmethod
+    def identity(cls, index=0):
+        id1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', cls.__name__)
+        id2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', id1).lower()
+        return '{}#{}'.format(id2, index).encode('utf8')
 
     @staticmethod
     def handler_default(message):
@@ -85,8 +141,8 @@ class Worker(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def controller_loop(self, endpoint, identity=None):
-        self.control_socket = Socket(self.context, zmq.REQ, identity=identity)
+    def controller_loop(self, endpoint, index):
+        self.control_socket = Socket(self.context, zmq.REQ, identity=self.identity(index))
         self.control_socket.connect(endpoint)
         self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
         while not self.stop_signal:

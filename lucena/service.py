@@ -18,50 +18,47 @@ class Service(Worker):
             self.args = args
             self.kwargs = kwargs
             self.poller = zmq.Poller()
-            self.thread = None
+            self.service_identity = Service.identity()
+            self.service_thread = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
 
         def start(self):
-            if self.thread is not None:
+            if self.service_thread is not None:
                 raise AlreadyStarted()
             service = Service(*self.args, **self.kwargs)
-            self.thread = threading.Thread(
+            self.service_thread = threading.Thread(
                 target=service.controller_loop,
                 daemon=False,
                 kwargs={
                     'endpoint': self.control_socket.last_endpoint,
-                    'identity': b'service#0'
+                    'index': 0
                 }
             )
-            self.thread.start()
-            _slave_id, client, message = self.control_socket.recv_from_worker()
-            assert _slave_id == b'service#0'
-            assert client == b'$controller'
+            self.service_thread.start()
+            message = self.recv()
             assert message == {"$signal": "ready"}
 
         def stop(self, timeout=None):
-            self.control_socket.send_to_worker(
-                b'service#0',
-                b'$controller',
-                {'$signal': 'stop'}
-            )
-            _worker_id, client, message = self.control_socket.recv_from_worker()
-            assert (_worker_id == b'service#0')
-            assert (client == b'$controller')
-            assert (message == {'$signal': 'stop', '$rep': 'OK'})
-            self.thread.join(timeout=timeout)
-            self.thread = None
+            self.send({'$signal': 'stop'})
+            message = self.recv()
+            assert message == {'$signal': 'stop', '$rep': 'OK'}
+            self.service_thread.join(timeout=timeout)
+            self.service_thread = None
 
         def send(self, message):
             # TODO: Raise an error if not started.
-            return self.control_socket.send_to_worker(b'service#0', b'$controller', message)
+            return self.control_socket.send_to_worker(
+                self.service_identity,
+                b'$controller',
+                message
+            )
 
         def recv(self):
             # TODO: Raise an error if not started.
             worker, client, message = self.control_socket.recv_from_worker()
             assert client == b'$controller'
-            assert worker == b'service#0'
+            assert worker == self.service_identity
             return message
 
     # Service implementation.
@@ -120,23 +117,19 @@ class Service(Worker):
         self.worker_ready_ids.append(worker_id)
         self.socket.send_to_client(client, reply)
 
-    def controller_loop(self, endpoint, identity=None):
-
+    def controller_loop(self, endpoint, index):
         ##
         # Init worker queues
         self.worker_ready_ids = []
         # Init sockets
         self.socket = Socket(self.context, zmq.ROUTER)
         self.socket.bind(self.endpoint)
-
         self.worker_controller = Worker.Controller(self.worker_factory)
         self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
         ##
-
-        self.control_socket = Socket(self.context, zmq.REQ, identity=identity)
+        self.control_socket = Socket(self.context, zmq.REQ, identity=self.identity(index))
         self.control_socket.connect(endpoint)
         self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
-
         while not self.stop_signal:
             sockets = self._handle_poll()
             if self.control_socket in sockets:
@@ -145,7 +138,6 @@ class Service(Worker):
                 self._handle_socket()
             if self.worker_controller.message_queued():
                 self._handle_worker_controller()
-
         self._unplug()
 
     def pending_workers(self):
