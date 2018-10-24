@@ -1,35 +1,67 @@
 # -*- coding: utf-8 -*-
 import tempfile
+import threading
 
 import zmq
 
-from lucena.controller import Controller
+from lucena.exceptions import AlreadyStarted
 from lucena.io2.socket import Socket
 from lucena.worker import Worker
 
 
 class Service(Worker):
 
-    class Controller(Controller):
+    class Controller(object):
 
         def __init__(self, *args, **kwargs):
-            super(Service.Controller, self).__init__(Service, *args, **kwargs)
-            self.service_id = self.identity_for(index=0)
+            self.context = zmq.Context.instance()
+            self.args = args
+            self.kwargs = kwargs
+            self.poller = zmq.Poller()
+            self.thread = None
+            self.control_socket = Socket(self.context, zmq.ROUTER)
+            self.control_socket.bind(Socket.inproc_unique_endpoint())
 
         def start(self):
-            return super(Service.Controller, self).start(number_of_slaves=1)
+            if self.thread is not None:
+                raise AlreadyStarted()
+            service = Service(*self.args, **self.kwargs)
+            self.thread = threading.Thread(
+                target=service.controller_loop,
+                daemon=False,
+                kwargs={
+                    'endpoint': self.control_socket.last_endpoint,
+                    'identity': b'service#0'
+                }
+            )
+            self.thread.start()
+            _slave_id, client, message = self.control_socket.recv_from_worker()
+            assert _slave_id == b'service#0'
+            assert client == b'$controller'
+            assert message == {"$signal": "ready"}
+
+        def stop(self, timeout=None):
+            self.control_socket.send_to_worker(
+                b'service#0',
+                b'$controller',
+                {'$signal': 'stop'}
+            )
+            _worker_id, client, message = self.control_socket.recv_from_worker()
+            assert (_worker_id == b'service#0')
+            assert (client == b'$controller')
+            assert (message == {'$signal': 'stop', '$rep': 'OK'})
+            self.thread.join(timeout=timeout)
+            self.thread = None
 
         def send(self, message):
-            return super(Service.Controller, self).send(
-                message=message,
-                client_id=b'$controller',
-                slave_id=self.service_id
-            )
+            # TODO: Raise an error if not started.
+            return self.control_socket.send_to_worker(b'service#0', b'$controller', message)
 
         def recv(self):
+            # TODO: Raise an error if not started.
             worker, client, message = self.control_socket.recv_from_worker()
             assert client == b'$controller'
-            assert worker == self.service_id
+            assert worker == b'service#0'
             return message
 
     # Service implementation.

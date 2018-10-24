@@ -8,6 +8,8 @@ from lucena.message_handler import MessageHandler
 
 class Worker(object):
 
+    MAX_START_INSTANCES = 128
+
     class Controller(Controller):
         def __init__(self, *args, **kwargs):
             super(Worker.Controller, self).__init__(Worker, *args, **kwargs)

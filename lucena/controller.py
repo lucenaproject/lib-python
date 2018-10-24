@@ -91,6 +91,9 @@ class Controller(object):
         assert client_id is not None
         return self.control_socket.send_to_worker(slave_id, client_id, message)
 
+    def send2(self, message, xxx=None):
+        pass
+
     def recv(self):
         # TODO: Raise an error if not started.
         return self.control_socket.recv_from_worker()
