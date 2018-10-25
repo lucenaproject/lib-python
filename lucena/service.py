@@ -151,16 +151,3 @@ def create_service(worker_factory=None, endpoint=None, number_of_workers=1):
         endpoint=endpoint,
         number_of_workers=number_of_workers
     )
-
-
-def main():
-    service = create_service(Worker)
-    service.start()
-    service.send({'$req': 'eval', '$attr': 'total_client_requests'})
-    rep = service.recv()
-    service.stop()
-    print(rep)
-
-
-if __name__ == '__main__':
-    main()

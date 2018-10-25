@@ -3,7 +3,8 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted
+from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
+    UnexpectedParameterValue
 from lucena.worker import Worker
 
 
@@ -60,4 +61,22 @@ class TestWorkerController(unittest.TestCase):
         self.assertRaises(
             WorkerNotStarted,
             controller.recv
+        )
+
+    def test_number_of_worker_fails_with_invalid_parameters(self):
+        controller = Worker.Controller()
+        self.assertRaises(
+            UnexpectedParameterValue,
+            controller.start,
+            number_of_workers='a'
+        )
+        self.assertRaises(
+            UnexpectedParameterValue,
+            controller.start,
+            number_of_workers=0
+        )
+        self.assertRaises(
+            UnexpectedParameterValue,
+            controller.start,
+            number_of_workers=-10
         )

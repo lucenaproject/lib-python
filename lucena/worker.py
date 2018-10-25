@@ -35,7 +35,6 @@ class Worker(object):
             if self.is_started():
                 raise WorkerAlreadyStarted()
             if not isinstance(number_of_workers, int) or number_of_workers < 1:
-                # TODO validate this
                 raise UnexpectedParameterValue("number_of_workers")
             self.running_workers = {}
             for i in range(number_of_workers):
