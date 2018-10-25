@@ -8,6 +8,11 @@ class LucenaException(Exception):
         return self.__doc__
 
 
-class AlreadyStarted(LucenaException):
-    """This Worker or Service has already been started."""
+class WorkerAlreadyStarted(LucenaException):
+    """This Worker has already been started."""
+    pass
+
+
+class ServiceAlreadyStarted(LucenaException):
+    """This Service has already been started."""
     pass

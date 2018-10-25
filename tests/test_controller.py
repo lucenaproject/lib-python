@@ -3,7 +3,7 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from lucena.exceptions import AlreadyStarted
+from lucena.exceptions import WorkerAlreadyStarted
 from lucena.worker import Worker
 
 
@@ -20,5 +20,5 @@ class TestWorkerController(unittest.TestCase):
     def test_start_worker_fails_if_already_started(self):
         controller = Worker.Controller()
         controller.start()
-        self.assertRaises(AlreadyStarted, controller.start)
+        self.assertRaises(WorkerAlreadyStarted, controller.start)
         controller.stop()

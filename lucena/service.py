@@ -4,7 +4,7 @@ import threading
 
 import zmq
 
-from lucena.exceptions import AlreadyStarted
+from lucena.exceptions import ServiceAlreadyStarted
 from lucena.io2.socket import Socket
 from lucena.worker import Worker
 
@@ -25,7 +25,7 @@ class Service(Worker):
 
         def start(self):
             if self.service_thread is not None:
-                raise AlreadyStarted()
+                raise ServiceAlreadyStarted()
             service = Service(*self.args, **self.kwargs)
             self.service_thread = threading.Thread(
                 target=service.controller_loop,
@@ -71,10 +71,8 @@ class Service(Worker):
         self.endpoint = endpoint if endpoint is not None \
             else "ipc://{}.ipc".format(tempfile.NamedTemporaryFile().name)
         self.number_of_workers = number_of_workers
-
         self.socket = None
         self.worker_controller = None
-
         self.worker_ready_ids = None
         self.total_client_requests = 0
 
@@ -118,7 +116,9 @@ class Service(Worker):
         self.socket.send_to_client(client, reply)
 
     def controller_loop(self, endpoint, index):
-        ##
+        # TODO: Implement the io_control_plugin (condition, callable, <before, loop, after>)
+        # TODO: before condition could be self.io_loop_state == 'running'
+        self.stop_signal = False
         # Init worker queues
         self.worker_ready_ids = []
         # Init sockets

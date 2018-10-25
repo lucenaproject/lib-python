@@ -4,7 +4,7 @@ import re
 import threading
 import zmq
 
-from lucena.exceptions import AlreadyStarted
+from lucena.exceptions import WorkerAlreadyStarted
 from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
@@ -29,7 +29,7 @@ class Worker(object):
 
         def start(self, number_of_workers=1):
             if self.running_workers:
-                raise AlreadyStarted()
+                raise WorkerAlreadyStarted()
             if number_of_workers < 1:
                 raise ValueError("")
             for i in range(number_of_workers):
