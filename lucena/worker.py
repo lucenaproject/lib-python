@@ -4,7 +4,8 @@ import re
 import threading
 import zmq
 
-from lucena.exceptions import WorkerAlreadyStarted
+from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
+    UnexpectedParameterValue
 from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
@@ -23,15 +24,20 @@ class Worker(object):
             self.args = args
             self.kwargs = kwargs
             self.poller = zmq.Poller()
-            self.running_workers = {}
+            self.running_workers = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
 
+        def is_started(self):
+            return self.running_workers is not None
+
         def start(self, number_of_workers=1):
-            if self.running_workers:
+            if self.is_started():
                 raise WorkerAlreadyStarted()
-            if number_of_workers < 1:
-                raise ValueError("")
+            if not isinstance(number_of_workers, int) or number_of_workers < 1:
+                # TODO validate this
+                raise UnexpectedParameterValue("number_of_workers")
+            self.running_workers = {}
             for i in range(number_of_workers):
                 worker = Worker(*self.args, **self.kwargs)
                 thread = threading.Thread(
@@ -58,10 +64,11 @@ class Worker(object):
                 assert client == b'$controller'
                 assert message == {'$signal': 'stop', '$rep': 'OK'}
                 running_worker.thread.join(timeout=timeout)
-            self.running_workers = {}
+            self.running_workers = None
 
         def send(self, worker_id, client_id, message):
-            # TODO: Raise an error if not started.
+            if not self.is_started():
+                raise WorkerNotStarted()
             return self.control_socket.send_to_worker(worker_id, client_id, message)
 
         def recv(self):

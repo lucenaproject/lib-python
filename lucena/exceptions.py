@@ -8,8 +8,22 @@ class LucenaException(Exception):
         return self.__doc__
 
 
+class UnexpectedParameterValue(LucenaException):
+    def __init__(self, param_name):
+        super(UnexpectedParameterValue, self).__init__()
+        self.param_name = param_name
+
+    def __str__(self):
+        return "Unexpected value in parameter '{}'.".format(self.param_name)
+
+
 class WorkerAlreadyStarted(LucenaException):
     """This Worker has already been started."""
+    pass
+
+
+class WorkerNotStarted(LucenaException):
+    """This Worker has not been started."""
     pass
 
 
