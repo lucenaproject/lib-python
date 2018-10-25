@@ -54,3 +54,10 @@ class TestWorkerController(unittest.TestCase):
             b'client',
             {'$req': 'hello'}
         )
+
+    def test_recv_from_worker_fails_if_not_started(self):
+        controller = Worker.Controller()
+        self.assertRaises(
+            WorkerNotStarted,
+            controller.recv
+        )
