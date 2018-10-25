@@ -106,3 +106,5 @@ ENV/
 .idea
 
 _/
+
+symlink*
