@@ -5,16 +5,14 @@ class LucenaException(Exception):
     """Lucena has raised an error."""
 
     def __str__(self):
+        if self.args or not self.__doc__:
+            return super(LucenaException, self).__str__()
         return self.__doc__
 
 
-class UnexpectedParameterValue(LucenaException):
-    def __init__(self, param_name):
-        super(UnexpectedParameterValue, self).__init__()
-        self.param_name = param_name
-
-    def __str__(self):
-        return "Unexpected value in parameter '{}'.".format(self.param_name)
+class LookupHandlerError(LucenaException):
+    """Unable to resolve this message."""
+    pass
 
 
 class WorkerAlreadyStarted(LucenaException):

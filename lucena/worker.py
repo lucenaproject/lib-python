@@ -5,7 +5,7 @@ import threading
 import zmq
 
 from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
-    UnexpectedParameterValue
+    LookupHandlerError
 from lucena.io2.socket import Socket
 from lucena.message_handler import MessageHandler
 
@@ -35,7 +35,7 @@ class Worker(object):
             if self.is_started():
                 raise WorkerAlreadyStarted()
             if not isinstance(number_of_workers, int) or number_of_workers < 1:
-                raise UnexpectedParameterValue("number_of_workers")
+                raise ValueError("Parameter number_of_workers must be a positive integer.")
             self.running_workers = {}
             for i in range(number_of_workers):
                 worker = Worker(*self.args, **self.kwargs)
@@ -138,11 +138,18 @@ class Worker(object):
         self.message_handlers.append(MessageHandler(message, handler))
         self.message_handlers.sort()
 
+    def unbind_handler(self, message):
+        for message_handler in self.message_handlers:
+            if message_handler.message == message:
+                self.message_handlers.remove(message_handler)
+                return
+        raise LookupHandlerError("No handler for {}".format(message))
+
     def get_handler_for(self, message):
         for message_handler in self.message_handlers:
             if message_handler.match_in(message):
                 return message_handler.handler
-        raise LookupError("No handler for {}".format(message))
+        raise LookupHandlerError("No handler for {}".format(message))
 
     def resolve(self, message):
         handler = self.get_handler_for(message)

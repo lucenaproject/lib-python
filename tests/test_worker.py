@@ -3,8 +3,7 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
-    UnexpectedParameterValue
+from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, LookupHandlerError
 from lucena.worker import Worker
 
 
@@ -28,6 +27,12 @@ class TestWorker(unittest.TestCase):
         worker = Worker()
         handler = worker.get_handler_for(message)
         self.assertEqual(handler, Worker.handler_default)
+
+    def test_no_handler_raises_an_exception(self):
+        message = {'a': 123}
+        worker = Worker()
+        worker.unbind_handler({})
+        self.assertRaises(LookupHandlerError, worker.get_handler_for, message)
 
 
 class TestWorkerController(unittest.TestCase):
@@ -66,17 +71,17 @@ class TestWorkerController(unittest.TestCase):
     def test_number_of_worker_fails_with_invalid_parameters(self):
         controller = Worker.Controller()
         self.assertRaises(
-            UnexpectedParameterValue,
+            ValueError,
             controller.start,
             number_of_workers='a'
         )
         self.assertRaises(
-            UnexpectedParameterValue,
+            ValueError,
             controller.start,
             number_of_workers=0
         )
         self.assertRaises(
-            UnexpectedParameterValue,
+            ValueError,
             controller.start,
             number_of_workers=-10
         )
