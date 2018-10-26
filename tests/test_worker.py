@@ -8,31 +8,38 @@ from lucena.worker import Worker
 
 
 class TestWorker(unittest.TestCase):
-    @staticmethod
-    def basic_handler():
-        pass
 
     def setUp(self):
         super(TestWorker, self).setUp()
+        self.message = {'a': 123, 'b': 'hello'}
+        self.worker = Worker()
+        self.basic_handler = lambda: None
 
     def test_lookup_handler(self):
-        message = {'a': 123, 'b': 'hello'}
-        worker = Worker()
-        worker.bind_handler(message, self.basic_handler)
-        handler = worker.get_handler_for(message)
+        self.worker.bind_handler(self.message, self.basic_handler)
+        handler = self.worker.get_handler_for(self.message)
         self.assertEqual(handler, self.basic_handler)
 
     def test_lookup_unknown_message_returns_default_handler(self):
-        message = {'a': 123}
-        worker = Worker()
-        handler = worker.get_handler_for(message)
+        handler = self.worker.get_handler_for(self.message)
         self.assertEqual(handler, Worker.handler_default)
 
     def test_no_handler_raises_an_exception(self):
-        message = {'a': 123}
-        worker = Worker()
-        worker.unbind_handler({})
-        self.assertRaises(LookupHandlerError, worker.get_handler_for, message)
+        self.worker.unbind_handler({})
+        self.assertRaises(
+            LookupHandlerError,
+            self.worker.get_handler_for,
+            self.message
+        )
+
+    def test_unbind_unknown_handler_raises_an_exception(self):
+        self.worker.bind_handler(self.message, self.basic_handler)
+        self.worker.unbind_handler(self.message)
+        self.assertRaises(
+            LookupHandlerError,
+            self.worker.unbind_handler,
+            {'a': 456}
+        )
 
 
 class TestWorkerController(unittest.TestCase):
