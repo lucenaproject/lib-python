@@ -4,7 +4,7 @@ import threading
 
 import zmq
 
-from lucena.exceptions import ServiceAlreadyStarted
+from lucena.exceptions import ServiceAlreadyStarted, ServiceNotStarted
 from lucena.io2.socket import Socket
 from lucena.worker import Worker
 
@@ -22,6 +22,9 @@ class Service(Worker):
             self.service_thread = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
+
+        def is_started(self):
+            return self.service_thread is not None
 
         def start(self):
             if self.service_thread is not None:
@@ -47,7 +50,8 @@ class Service(Worker):
             self.service_thread = None
 
         def send(self, message):
-            # TODO: Raise an error if not started.
+            if not self.is_started():
+                raise ServiceNotStarted()
             return self.control_socket.send_to_worker(
                 self.service_identity,
                 b'$controller',
@@ -55,7 +59,8 @@ class Service(Worker):
             )
 
         def recv(self):
-            # TODO: Raise an error if not started.
+            if not self.is_started():
+                raise ServiceNotStarted()
             worker, client, message = self.control_socket.recv_from_worker()
             assert client == b'$controller'
             assert worker == self.service_identity
@@ -75,17 +80,6 @@ class Service(Worker):
         self.worker_controller = None
         self.worker_ready_ids = None
         self.total_client_requests = 0
-
-    def _plug(self, control_socket, number_of_workers):
-        # Init worker queues
-        self.worker_ready_ids = []
-        # Init sockets
-        self.socket = Socket(self.context, zmq.ROUTER)
-        self.socket.bind(self.endpoint)
-        self.control_socket = control_socket
-        self.control_socket.signal(Socket.SIGNAL_READY)
-        self.worker_controller = Worker.Controller(self.worker_factory)
-        self.worker_ready_ids = self.worker_controller.start(number_of_workers)
 
     def _unplug(self):
         self.socket.close()

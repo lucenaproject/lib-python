@@ -28,3 +28,8 @@ class WorkerNotStarted(LucenaException):
 class ServiceAlreadyStarted(LucenaException):
     """This Service has already been started."""
     pass
+
+
+class ServiceNotStarted(LucenaException):
+    """This Service has not been started."""
+    pass

@@ -24,7 +24,7 @@ class TestWorker(unittest.TestCase):
         handler = self.worker.get_handler_for(self.message)
         self.assertEqual(handler, Worker.handler_default)
 
-    def test_no_handler_raises_an_exception(self):
+    def test_lookup_unknown_handler_raises_an_exception(self):
         self.worker.unbind_handler({})
         self.assertRaises(
             LookupHandlerError,
