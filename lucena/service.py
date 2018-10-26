@@ -59,6 +59,7 @@ class Service(Worker):
             )
 
         def recv(self):
+            # TODO: Add timeout
             if not self.is_started():
                 raise ServiceNotStarted()
             worker, client, message = self.control_socket.recv_from_worker()

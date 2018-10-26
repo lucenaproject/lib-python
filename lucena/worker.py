@@ -71,6 +71,7 @@ class Worker(object):
             return self.control_socket.send_to_worker(worker_id, client_id, message)
 
         def recv(self):
+            # TODO: Add timeout
             if not self.is_started():
                 raise WorkerNotStarted()
             worker, client, message = self.control_socket.recv_from_worker()
