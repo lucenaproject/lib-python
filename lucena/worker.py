@@ -12,12 +12,17 @@ from lucena.message_handler import MessageHandler
 
 class Worker(object):
 
-    class Controller(object):
+    RunningWorker = collections.namedtuple(
+        'RunningWorker',
+        ['worker', 'thread']
+    )
 
-        RunningWorker = collections.namedtuple(
-            'RunningWorker',
-            ['worker', 'thread']
-        )
+    PollHandler = collections.namedtuple(
+        'PollHandler',
+        ['socket', 'flags', 'handler']
+    )
+
+    class Controller(object):
 
         def __init__(self, *args, **kwargs):
             self.context = zmq.Context.instance()
@@ -40,7 +45,7 @@ class Worker(object):
             for i in range(number_of_workers):
                 worker = Worker(*self.args, **self.kwargs)
                 thread = threading.Thread(
-                    target=worker.controller_loop,
+                    target=worker,
                     daemon=False,
                     kwargs={
                         'endpoint': self.control_socket.last_endpoint,
@@ -52,7 +57,7 @@ class Worker(object):
                 assert identity == worker.identity(i)
                 assert client == b'$controller'
                 assert message == {"$signal": "ready"}
-                self.running_workers[identity] = self.RunningWorker(worker, thread)
+                self.running_workers[identity] = Worker.RunningWorker(worker, thread)
             return list(self.running_workers.keys())
 
         def stop(self, timeout=None):
@@ -77,18 +82,12 @@ class Worker(object):
             worker, client, message = self.control_socket.recv_from_worker()
             return worker, client, message
 
-        def message_queued(self, timeout=0.01):
-            self.poller.register(
-                self.control_socket,
-                zmq.POLLIN
-            )
-            return bool(self.poller.poll(timeout))
-
     # Worker implementation.
 
     def __init__(self, *args, **kwargs):
         self.context = zmq.Context.instance()
         self.poller = zmq.Poller()
+        self.poll_handlers = []
         self.message_handlers = []
         self.bind_handler({}, self.handler_default)
         self.bind_handler({'$signal': 'stop'}, self.handler_stop)
@@ -96,12 +95,41 @@ class Worker(object):
         self.stop_signal = False
         self.control_socket = None
 
-    def _handle_poll(self):
-        self.poller.register(
+    def __call__(self, endpoint, index):
+        self._before_start(self.identity(index))
+        self.control_socket.connect(endpoint)
+        self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
+        while not self.stop_signal:
+            self._handle_poll()
+        self._before_stop()
+
+    def _add_poll_handler(self, socket, flags, handler):
+        poll_handler = self.PollHandler(socket, flags, handler)
+        self.poll_handlers.append(poll_handler)
+
+    def _before_start(self, identity):
+        self.poll_handlers = []
+        self.stop_signal = False
+        self.control_socket = Socket(self.context, zmq.REQ, identity=identity)
+        self._add_poll_handler(
             self.control_socket,
-            zmq.POLLIN if not self.stop_signal else 0
+            zmq.POLLIN if not self.stop_signal else 0,
+            self._handle_ctrl_socket
         )
-        return dict(self.poller.poll(.1))
+
+    def _before_stop(self):
+        self.control_socket.close()
+
+    def _handle_poll(self):
+        for poll_handler in self.poll_handlers:
+            self.poller.register(
+                poll_handler.socket,
+                poll_handler.flags
+            )
+        sockets = dict(self.poller.poll(1))
+        for poll_handler in self.poll_handlers:
+            if poll_handler.socket in sockets:
+                poll_handler.handler()
 
     def _handle_ctrl_socket(self):
         client, message = self.control_socket.recv_from_client()
@@ -156,11 +184,3 @@ class Worker(object):
         handler = self.get_handler_for(message)
         return handler(message)
 
-    def controller_loop(self, endpoint, index):
-        self.control_socket = Socket(self.context, zmq.REQ, identity=self.identity(index))
-        self.control_socket.connect(endpoint)
-        self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
-        while not self.stop_signal:
-            sockets = self._handle_poll()
-            if self.control_socket in sockets:
-                self._handle_ctrl_socket()

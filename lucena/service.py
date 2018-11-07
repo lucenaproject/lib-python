@@ -31,7 +31,7 @@ class Service(Worker):
                 raise ServiceAlreadyStarted()
             service = Service(*self.args, **self.kwargs)
             self.service_thread = threading.Thread(
-                target=service.controller_loop,
+                target=service,
                 daemon=False,
                 kwargs={
                     'endpoint': self.control_socket.last_endpoint,
@@ -82,21 +82,28 @@ class Service(Worker):
         self.worker_ready_ids = None
         self.total_client_requests = 0
 
-    def _unplug(self):
-        self.socket.close()
-        self.control_socket.close()
-        self.worker_controller.stop()
-
-    def _handle_poll(self):
-        self.poller.register(
-            self.control_socket,
-            zmq.POLLIN if not self.stop_signal else 0
-        )
-        self.poller.register(
+    def _before_start(self, identity):
+        super(Service, self)._before_start(identity)
+        self.worker_ready_ids = []
+        self.socket = Socket(self.context, zmq.ROUTER)
+        self.socket.bind(self.endpoint)
+        self.worker_controller = Worker.Controller(self.worker_factory)
+        self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
+        self._add_poll_handler(
             self.socket,
-            zmq.POLLIN if self.worker_ready_ids and not self.stop_signal else 0
+            zmq.POLLIN if self.worker_ready_ids else 0,
+            self._handle_socket
         )
-        return dict(self.poller.poll(.1))
+        self._add_poll_handler(
+            self.worker_controller.control_socket,
+            zmq.POLLIN,
+            self._handle_worker_controller
+        )
+
+    def _before_stop(self):
+        super(Service, self)._before_stop()
+        self.socket.close()
+        self.worker_controller.stop()
 
     def _handle_socket(self):
         assert len(self.worker_ready_ids) > 0
@@ -109,31 +116,6 @@ class Service(Worker):
         worker_id, client, reply = self.worker_controller.recv()
         self.worker_ready_ids.append(worker_id)
         self.socket.send_to_client(client, reply)
-
-    def controller_loop(self, endpoint, index):
-        # TODO: Implement the io_control_plugin (condition, callable, <before, loop, after>)
-        # TODO: before condition could be self.io_loop_state == 'running'
-        self.stop_signal = False
-        # Init worker queues
-        self.worker_ready_ids = []
-        # Init sockets
-        self.socket = Socket(self.context, zmq.ROUTER)
-        self.socket.bind(self.endpoint)
-        self.worker_controller = Worker.Controller(self.worker_factory)
-        self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
-        ##
-        self.control_socket = Socket(self.context, zmq.REQ, identity=self.identity(index))
-        self.control_socket.connect(endpoint)
-        self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
-        while not self.stop_signal:
-            sockets = self._handle_poll()
-            if self.control_socket in sockets:
-                self._handle_ctrl_socket()
-            if self.socket in sockets:
-                self._handle_socket()
-            if self.worker_controller.message_queued():
-                self._handle_worker_controller()
-        self._unplug()
 
     def pending_workers(self):
         return self.worker_ready_ids is not None and \
