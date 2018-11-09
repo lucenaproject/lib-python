@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='lucena',
-    version='0.6',
+    version='0.6.1',
     description='Python core library for building web services in Lucena Project.',
     url='https://github.com/lucenaproject',
     author='Fernando Miranda',
