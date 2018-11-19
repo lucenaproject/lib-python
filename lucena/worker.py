@@ -24,8 +24,9 @@ class Worker(object):
 
     class Controller(object):
 
-        def __init__(self, **kwargs):
+        def __init__(self, *args, **kwargs):
             self.context = zmq.Context.instance()
+            self.args = args
             self.kwargs = kwargs
             self.poller = zmq.Poller()
             self.running_workers = None
@@ -42,18 +43,19 @@ class Worker(object):
                 raise ValueError("Parameter number_of_workers must be a positive integer.")
             self.running_workers = {}
             for i in range(number_of_workers):
-                worker = Worker(**self.kwargs)
+                worker = Worker(*self.args, **self.kwargs)
+                _identity = '$worker#{}'.format(i).encode('utf8')
                 thread = threading.Thread(
                     target=worker,
                     daemon=False,
                     kwargs={
                         'endpoint': self.control_socket.last_endpoint,
-                        'index': i
+                        'identity': _identity
                     }
                 )
                 thread.start()
                 identity, client, message = self.recv()
-                assert identity == worker.get_identity(i)
+                assert identity == _identity
                 assert client == b'$controller'
                 assert message == {"$signal": "ready"}
                 self.running_workers[identity] = Worker.RunningWorker(worker, thread)
@@ -83,20 +85,21 @@ class Worker(object):
 
     # Worker implementation.
 
-    def __init__(self, name=None, **kwargs):
-        self.name = name
-        self.context = zmq.Context.instance()
-        self.poller = zmq.Poller()
+    def __init__(self, *args, **kwargs):
+        self.identity = None
+        self.control_socket = None
+        self.stop_signal = False
         self.poll_handlers = []
         self.message_handlers = []
+        self.context = zmq.Context.instance()
+        self.poller = zmq.Poller()
         self.bind_handler({}, self.handler_default)
         self.bind_handler({'$signal': 'stop'}, self.handler_stop)
         self.bind_handler({'$req': 'eval'}, self.handler_eval)
-        self.stop_signal = False
-        self.control_socket = None
 
-    def __call__(self, endpoint, index):
-        self._before_start(self.get_identity(index))
+    def __call__(self, endpoint, identity):
+        self.identity = identity
+        self._before_start()
         self.control_socket.connect(endpoint)
         self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
         while not self.stop_signal:
@@ -107,10 +110,10 @@ class Worker(object):
         poll_handler = self.PollHandler(socket, flags, handler)
         self.poll_handlers.append(poll_handler)
 
-    def _before_start(self, identity):
+    def _before_start(self):
         self.poll_handlers = []
         self.stop_signal = False
-        self.control_socket = Socket(self.context, zmq.REQ, identity=identity)
+        self.control_socket = Socket(self.context, zmq.REQ, identity=self.identity)
         self._add_poll_handler(
             self.control_socket,
             zmq.POLLIN if not self.stop_signal else 0,
@@ -135,12 +138,6 @@ class Worker(object):
         client, message = self.control_socket.recv_from_client()
         response = self.resolve(message)
         self.control_socket.send_to_client(client, response)
-
-    @classmethod
-    def get_identity(cls, index=0):
-        id1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', cls.__name__)
-        id2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', id1).lower()
-        return '{}#{}'.format(id2, index).encode('utf8')
 
     @staticmethod
     def handler_default(message):

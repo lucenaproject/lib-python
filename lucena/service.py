@@ -13,11 +13,11 @@ class Service(Worker):
 
     class Controller(object):
 
-        def __init__(self, **kwargs):
+        def __init__(self, *args, **kwargs):
             self.context = zmq.Context.instance()
+            self.args = args
             self.kwargs = kwargs
             self.poller = zmq.Poller()
-            self.service_identity = Service.get_identity()
             self.service_thread = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
@@ -28,13 +28,13 @@ class Service(Worker):
         def start(self):
             if self.service_thread is not None:
                 raise ServiceAlreadyStarted()
-            service = Service(**self.kwargs)
+            service = Service(*self.args, **self.kwargs)
             self.service_thread = threading.Thread(
                 target=service,
                 daemon=False,
                 kwargs={
                     'endpoint': self.control_socket.last_endpoint,
-                    'index': 0
+                    'identity': b'$service'
                 }
             )
             self.service_thread.start()
@@ -52,7 +52,7 @@ class Service(Worker):
             if not self.is_started():
                 raise ServiceNotStarted()
             return self.control_socket.send_to_worker(
-                self.service_identity,
+                b'$service',
                 b'$controller',
                 message
             )
@@ -63,15 +63,19 @@ class Service(Worker):
                 raise ServiceNotStarted()
             worker, client, message = self.control_socket.recv_from_worker()
             assert client == b'$controller'
-            assert worker == self.service_identity
+            assert worker == b'$service'
             return message
 
     # Service implementation.
 
-    def __init__(self, worker_factory=None, endpoint=None, number_of_workers=1):
+    def __init__(self, service_name=None, worker_factory=None, endpoint=None,
+                 number_of_workers=1):
         # http://zguide.zeromq.org/page:all#Getting-the-Context-Right
         # You should create and use exactly one context in your process.
         super(Service, self).__init__()
+        if service_name is None:
+            service_name = self.__class__.__name__
+        self.service_name = service_name
         if worker_factory is None:
             worker_factory = Worker
         self.worker_factory = worker_factory
@@ -83,8 +87,8 @@ class Service(Worker):
         self.worker_ready_ids = None
         self.total_client_requests = 0
 
-    def _before_start(self, identity):
-        super(Service, self)._before_start(identity)
+    def _before_start(self):
+        super(Service, self)._before_start()
         self.worker_ready_ids = []
         self.socket = Socket(self.context, zmq.ROUTER)
         self.socket.bind(self.endpoint)
@@ -123,8 +127,9 @@ class Service(Worker):
                len(self.worker_ready_ids) < self.number_of_workers
 
 
-def create_service(worker_factory=None, endpoint=None, number_of_workers=1):
+def create_service(service_name, worker_factory=None, endpoint=None, number_of_workers=1):
     return Service.Controller(
+        service_name=service_name,
         worker_factory=worker_factory,
         endpoint=endpoint,
         number_of_workers=number_of_workers
