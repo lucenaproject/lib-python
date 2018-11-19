@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import zmq
 
+from lucena.client import RemoteClient
 from lucena.exceptions import ServiceAlreadyStarted, ServiceNotStarted
 from lucena.service import Service, create_service
 from lucena.worker import Worker
@@ -22,25 +23,24 @@ class TestClientService(unittest.TestCase):
             endpoint=self.endpoint
         )
 
-    def client_task(self, client_name):
+    def client_task(self):
         """
         Basic request-reply client using REQ socket.
         """
-        socket = zmq.Context.instance().socket(zmq.REQ)
-        socket.identity = u"client-{}".format(client_name).encode("ascii")
-        socket.connect(self.endpoint)
-        socket.send(b'{"$req": "HELLO"}')
-        reply = socket.recv()
+        client = RemoteClient()
+        client.connect(self.endpoint)
+        client.send({"$req": "HELLO"})
+        reply = client.recv()
         self.assertEqual(
             reply,
-            b'{"$req": "HELLO", "$rep": null, "$error": "No handler match"}'
+            {"$req": "HELLO", "$rep": None, "$error": "No handler match"}
         )
 
     def test_total_client_requests(self):
         client_requests = 256
         self.service.start()
         for i in range(client_requests):
-            self.client_task(i)
+            self.client_task()
 
         self.service.send({'$req': 'eval', '$attr': 'total_client_requests'})
         reply = self.service.recv()

@@ -100,6 +100,13 @@ class Socket(zmq.Socket):
         message = json.loads(frames[4].decode('utf-8'))
         return worker, client, message
 
+    def send_to_service(self, message):
+        self.send(bytes(json.dumps(message).encode('utf-8')))
+
+    def recv_from_service(self):
+        data = self.recv()
+        return json.loads(data.decode('utf-8'))
+
 
 class RouteSocket(Socket):
 
@@ -108,10 +115,3 @@ class RouteSocket(Socket):
         sender, delimiter, message = self.recv_multipart()
         assert Socket.is_signal(message)
         return struct.unpack('I', message)[0]
-
-
-if __name__ == '__main__':
-    s = Socket(zmq.Context(), zmq.REQ, identity="culo")
-    print(s.identity)
-    # s0, s1 = Socket.socket_pair(zmq.Context())
-    # print(s0.last_endpoint)

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import collections
-import re
 import threading
 import zmq
 

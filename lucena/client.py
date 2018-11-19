@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
 import zmq
 
+from lucena.io2.socket import Socket
+
 
 class RemoteClient(object):
 
     def __init__(self):
-        self.socket = zmq.Context.instance().socket(zmq.REQ)
-        self.socket.identity = u"client-{}".format(client_name).encode("ascii")
-        self.socket.connect(self.endpoint)
-        self.socket.send(b'{"$req": "HELLO"}')
-        reply = self.socket.recv()
+        self.socket = Socket(zmq.Context.instance(), zmq.REQ)
 
     def connect(self, endpoint):
-        pass
+        self.socket.connect(endpoint)
 
     def send(self, message):
-        pass
+        self.socket.send_to_service(message)
 
     def recv(self, timeout=None):
-        pass
+        return self.socket.recv_from_service()
 
+    def close(self):
+        self.socket.close()
