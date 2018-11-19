@@ -57,7 +57,7 @@ class TestServiceController(unittest.TestCase):
 
     def test_service_controller_start_thread(self):
         controller = Service.Controller(worker_factory=Worker)
-        rv = (Service.identity(0), b'$controller', {"$signal": "ready"})
+        rv = (Service.get_identity(0), b'$controller', {"$signal": "ready"})
         with patch.object(controller.control_socket, 'recv_from_worker', return_value=rv):
             with patch.object(threading, 'Thread', return_value=MagicMock()) as m_thread:
                 controller.start()

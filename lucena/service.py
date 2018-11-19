@@ -13,12 +13,11 @@ class Service(Worker):
 
     class Controller(object):
 
-        def __init__(self, *args, **kwargs):
+        def __init__(self, **kwargs):
             self.context = zmq.Context.instance()
-            self.args = args
             self.kwargs = kwargs
             self.poller = zmq.Poller()
-            self.service_identity = Service.identity()
+            self.service_identity = Service.get_identity()
             self.service_thread = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
@@ -29,7 +28,7 @@ class Service(Worker):
         def start(self):
             if self.service_thread is not None:
                 raise ServiceAlreadyStarted()
-            service = Service(*self.args, **self.kwargs)
+            service = Service(**self.kwargs)
             self.service_thread = threading.Thread(
                 target=service,
                 daemon=False,
@@ -69,10 +68,12 @@ class Service(Worker):
 
     # Service implementation.
 
-    def __init__(self, worker_factory, endpoint=None, number_of_workers=1):
+    def __init__(self, worker_factory=None, endpoint=None, number_of_workers=1):
         # http://zguide.zeromq.org/page:all#Getting-the-Context-Right
         # You should create and use exactly one context in your process.
         super(Service, self).__init__()
+        if worker_factory is None:
+            worker_factory = Worker
         self.worker_factory = worker_factory
         self.endpoint = endpoint if endpoint is not None \
             else "ipc://{}.ipc".format(tempfile.NamedTemporaryFile().name)
@@ -87,7 +88,7 @@ class Service(Worker):
         self.worker_ready_ids = []
         self.socket = Socket(self.context, zmq.ROUTER)
         self.socket.bind(self.endpoint)
-        self.worker_controller = Worker.Controller(self.worker_factory)
+        self.worker_controller = Worker.Controller(worker_factory=self.worker_factory)
         self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
         self._add_poll_handler(
             self.socket,
@@ -124,7 +125,7 @@ class Service(Worker):
 
 def create_service(worker_factory=None, endpoint=None, number_of_workers=1):
     return Service.Controller(
-        worker_factory,
+        worker_factory=worker_factory,
         endpoint=endpoint,
         number_of_workers=number_of_workers
     )

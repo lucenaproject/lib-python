@@ -24,9 +24,8 @@ class Worker(object):
 
     class Controller(object):
 
-        def __init__(self, *args, **kwargs):
+        def __init__(self, **kwargs):
             self.context = zmq.Context.instance()
-            self.args = args
             self.kwargs = kwargs
             self.poller = zmq.Poller()
             self.running_workers = None
@@ -43,7 +42,7 @@ class Worker(object):
                 raise ValueError("Parameter number_of_workers must be a positive integer.")
             self.running_workers = {}
             for i in range(number_of_workers):
-                worker = Worker(*self.args, **self.kwargs)
+                worker = Worker(**self.kwargs)
                 thread = threading.Thread(
                     target=worker,
                     daemon=False,
@@ -54,7 +53,7 @@ class Worker(object):
                 )
                 thread.start()
                 identity, client, message = self.recv()
-                assert identity == worker.identity(i)
+                assert identity == worker.get_identity(i)
                 assert client == b'$controller'
                 assert message == {"$signal": "ready"}
                 self.running_workers[identity] = Worker.RunningWorker(worker, thread)
@@ -84,7 +83,8 @@ class Worker(object):
 
     # Worker implementation.
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, name=None, **kwargs):
+        self.name = name
         self.context = zmq.Context.instance()
         self.poller = zmq.Poller()
         self.poll_handlers = []
@@ -96,7 +96,7 @@ class Worker(object):
         self.control_socket = None
 
     def __call__(self, endpoint, index):
-        self._before_start(self.identity(index))
+        self._before_start(self.get_identity(index))
         self.control_socket.connect(endpoint)
         self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
         while not self.stop_signal:
@@ -137,7 +137,7 @@ class Worker(object):
         self.control_socket.send_to_client(client, response)
 
     @classmethod
-    def identity(cls, index=0):
+    def get_identity(cls, index=0):
         id1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', cls.__name__)
         id2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', id1).lower()
         return '{}#{}'.format(id2, index).encode('utf8')
