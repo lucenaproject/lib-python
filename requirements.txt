@@ -1,2 +1,2 @@
-pyzmq==17.1.2
+pyzmq==18.0.1
 codecov==2.0.15
