@@ -1,4 +1,5 @@
-![build status](https://api.travis-ci.com/lucenaproject/lib-python.svg?branch=master)
+![build status](https://api.travis-ci.com/lucenaproject/lucena.svg?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/lucenaproject/lucena/badge.svg)](https://coveralls.io/github/lucenaproject/lucena)
 [![GitHub](https://img.shields.io/github/license/mashape/apistatus.svg)](https://opensource.org/licenses/MIT)
 
 
