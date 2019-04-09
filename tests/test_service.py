@@ -4,8 +4,6 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-import zmq
-
 from lucena.client import RemoteClient
 from lucena.exceptions import ServiceAlreadyStarted, ServiceNotStarted
 from lucena.service import Service, create_service
@@ -41,7 +39,6 @@ class TestClientService(unittest.TestCase):
         self.service.start()
         for i in range(client_requests):
             self.client_task()
-
         self.service.send({'$req': 'eval', '$attr': 'total_client_requests'})
         reply = self.service.recv()
         self.assertEqual(client_requests, reply.get('$rep'))
