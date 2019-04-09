@@ -5,7 +5,7 @@ from lucena.message_handler import MessageHandler
 
 
 class TestMessageHandler(unittest.TestCase):
-    
+
     def setUp(self):
         super(TestMessageHandler, self).setUp()
 
