@@ -49,6 +49,13 @@ class TestClientService(unittest.TestCase):
             self.service.start()
             self.service.stop()
 
+    def test_pending_workers(self):
+        self.service.start()
+        self.service.send({'$req': 'eval', '$attr': 'pending_workers'})
+        reply = self.service.recv()
+        self.assertEqual(reply.get('$rep'), False)
+        self.service.stop()
+
 
 class TestServiceController(unittest.TestCase):
 

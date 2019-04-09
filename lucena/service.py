@@ -122,6 +122,7 @@ class Service(Worker):
         self.worker_ready_ids.append(worker_id)
         self.socket.send_to_client(client, reply)
 
+    @property
     def pending_workers(self):
         return self.worker_ready_ids is not None and \
                len(self.worker_ready_ids) < self.number_of_workers
