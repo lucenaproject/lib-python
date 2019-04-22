@@ -33,6 +33,7 @@ class TestClientService(unittest.TestCase):
             reply,
             {"$req": "HELLO", "$rep": None, "$error": "No handler match"}
         )
+        client.close()
 
     def test_total_client_requests(self):
         client_requests = 256
