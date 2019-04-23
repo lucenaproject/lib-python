@@ -48,13 +48,15 @@ class Socket(zmq.Socket):
         socket_1.connect(endpoint)
         return socket_0, socket_1
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, context, sock_type, **kwargs):
         identity = None
         if 'identity' in kwargs:
             identity = kwargs.pop('identity')
-        super(Socket, self).__init__(*args, **kwargs)
+        super(Socket, self).__init__(context, sock_type, **kwargs)
         if identity is not None:
             self.identity = identity
+        # if sock_type == zmq.REQ:
+        #     self.setsockopt(zmq.REQ_CORRELATE, 1)
 
     def signal(self, status=0):
         assert status < 0x7fffffff
@@ -75,11 +77,19 @@ class Socket(zmq.Socket):
 
     def recv_from_client(self):
         frames = self.recv_multipart()
-        assert len(frames) == 3
-        assert frames[1] == Socket.DELIMITER_FRAME
-        client = frames[0]
-        message = json.loads(frames[2].decode('utf-8'))
-        return client, message
+        if len(frames) == 3:
+            assert len(frames) == 3
+            assert frames[1] == Socket.DELIMITER_FRAME
+            client = frames[0]
+            message = json.loads(frames[2].decode('utf-8'))
+            return client, message
+        elif len(frames) == 4:
+            assert frames[2] == Socket.DELIMITER_FRAME
+            client = frames[0]
+            message = json.loads(frames[3].decode('utf-8'))
+            return client, message
+        else:
+            raise RuntimeError()
 
     def send_to_worker(self, worker, client, message):
         self.send_multipart([

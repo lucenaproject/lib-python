@@ -39,10 +39,15 @@ class Worker(object):
             if self.is_started():
                 raise WorkerAlreadyStarted()
             if not isinstance(number_of_workers, int) or number_of_workers < 1:
-                raise ValueError("Parameter number_of_workers must be a positive integer.")
+                raise ValueError(
+                    "Parameter number_of_workers must be a positive integer."
+                )
             self.running_workers = {}
             for i in range(number_of_workers):
-                worker = Worker(*self.args, **self.kwargs)
+                worker = self.kwargs.get('worker_factory', Worker)(
+                    *self.args,
+                    **self.kwargs
+                )
                 _identity = '$worker#{}'.format(i).encode('utf8')
                 thread = threading.Thread(
                     target=worker,
@@ -57,23 +62,36 @@ class Worker(object):
                 assert identity == _identity
                 assert client == b'$controller'
                 assert message == {"$signal": "ready"}
-                self.running_workers[identity] = Worker.RunningWorker(worker, thread)
+                self.running_workers[identity] = Worker.RunningWorker(
+                    worker,
+                    thread
+                )
             return list(self.running_workers.keys())
 
         def stop(self, timeout=None):
             for worker_id, running_worker in self.running_workers.items():
-                self.send(worker_id, b'$controller', {'$signal': 'stop'})
-                _worker_id, client, message = self.recv()
-                assert _worker_id == worker_id
-                assert client == b'$controller'
-                assert message == {'$signal': 'stop', '$rep': 'OK'}
-                running_worker.thread.join(timeout=timeout)
+                # Send stop command, retry 5 times.
+                for _ in range(5):
+                    self.send(worker_id, b'$controller', {'$signal': 'stop'})
+                    _worker_id, client, message = self.recv()
+                    if not worker_id == worker_id:
+                        continue
+                    if not client == b'$controller':
+                        continue
+                    if not message == {'$signal': 'stop', '$rep': 'OK'}:
+                        continue
+                    running_worker.thread.join(timeout=timeout)
+                    break
             self.running_workers = None
 
         def send(self, worker_id, client_id, message):
             if not self.is_started():
                 raise WorkerNotStarted()
-            return self.control_socket.send_to_worker(worker_id, client_id, message)
+            return self.control_socket.send_to_worker(
+                worker_id,
+                client_id,
+                message
+            )
 
         def recv(self):
             # TODO: Add timeout
@@ -100,7 +118,10 @@ class Worker(object):
         self.identity = identity
         self._before_start()
         self.control_socket.connect(endpoint)
-        self.control_socket.send_to_client(b'$controller', {"$signal": "ready"})
+        self.control_socket.send_to_client(
+            b'$controller',
+            {"$signal": "ready"}
+        )
         while not self.stop_signal:
             self._handle_poll()
         self._before_stop()
@@ -112,7 +133,11 @@ class Worker(object):
     def _before_start(self):
         self.poll_handlers = []
         self.stop_signal = False
-        self.control_socket = Socket(self.context, zmq.REQ, identity=self.identity)
+        self.control_socket = Socket(
+            self.context,
+            zmq.REQ,
+            identity=self.identity
+        )
         self._add_poll_handler(
             self.control_socket,
             zmq.POLLIN if not self.stop_signal else 0,

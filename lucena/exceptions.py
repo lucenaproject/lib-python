@@ -33,3 +33,8 @@ class ServiceAlreadyStarted(LucenaException):
 class ServiceNotStarted(LucenaException):
     """This Service has not been started."""
     pass
+
+
+class IOTimeout(LucenaException):
+    """Timeout processing request."""
+    pass

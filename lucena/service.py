@@ -92,8 +92,12 @@ class Service(Worker):
         self.worker_ready_ids = []
         self.socket = Socket(self.context, zmq.ROUTER)
         self.socket.bind(self.endpoint)
-        self.worker_controller = Worker.Controller(worker_factory=self.worker_factory)
-        self.worker_ready_ids = self.worker_controller.start(self.number_of_workers)
+        self.worker_controller = Worker.Controller(
+            worker_factory=self.worker_factory
+        )
+        self.worker_ready_ids = self.worker_controller.start(
+            self.number_of_workers
+        )
         self._add_poll_handler(
             self.socket,
             zmq.POLLIN if self.worker_ready_ids else 0,
@@ -128,7 +132,8 @@ class Service(Worker):
                len(self.worker_ready_ids) < self.number_of_workers
 
 
-def create_service(service_name, worker_factory=None, endpoint=None, number_of_workers=1):
+def create_service(service_name, worker_factory=None, endpoint=None,
+                   number_of_workers=1):
     return Service.Controller(
         service_name=service_name,
         worker_factory=worker_factory,

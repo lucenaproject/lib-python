@@ -248,7 +248,7 @@ class ZBeacon(object):
         #  If still a valid beacon, send on to the API
         if is_valid:
             self.pipe.send_unicode(peername, zmq.SNDMORE)
-            self.pipe.send(frame)
+            self.pipe.run(frame)
 
     def send_beacon(self):
         try:

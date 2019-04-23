@@ -3,7 +3,8 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, LookupHandlerError
+from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
+    LookupHandlerError
 from lucena.worker import Worker
 
 

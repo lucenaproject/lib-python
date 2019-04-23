@@ -272,7 +272,7 @@ class UDPLocalDiscoveryPlugin(Plugin):
         # If still a valid beacon, send on to the API
         if is_valid:
             self.pipe.send_unicode(peername, zmq.SNDMORE)
-            self.pipe.send(frame)
+            self.pipe.run(frame)
 
     def send_beacon(self):
         try:
@@ -315,7 +315,7 @@ if __name__ == '__main__':
     speaker = WorkingThread(zmq.Context(), UDPLocalDiscoveryPlugin)
     speaker.send_unicode("VERBOSE")
     speaker.send_unicode("CONFIGURE", zmq.SNDMORE)
-    speaker.send(struct.pack("I", 9999))
+    speaker.run(struct.pack("I", 9999))
     speaker.send_unicode("PUBLISH", zmq.SNDMORE)
     transmit = struct.pack(
         'cccb16sH',
@@ -324,5 +324,5 @@ if __name__ == '__main__':
         uuid.uuid4().bytes,
         socket.htons(1300)
     )
-    speaker.send(transmit)
+    speaker.run(transmit)
     speaker.stop()
