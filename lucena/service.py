@@ -38,33 +38,34 @@ class Service(Worker):
                 }
             )
             self.service_thread.start()
-            message = self.recv()
-            assert message == {"$signal": "ready"}
+            self.wait_for_signal('ready')
 
         def stop(self, timeout=None):
-            self.send({'$signal': 'stop'})
-            message = self.recv()
-            assert message == {'$signal': 'stop', '$rep': 'OK'}
+            reply = self.resolve({'$signal': 'stop'})
+            assert reply == {'$signal': 'stop', '$rep': 'OK'}
             self.service_thread.join(timeout=timeout)
             self.service_thread = None
 
-        def send(self, message):
+        def resolve(self, message, timeout=None):
             if not self.is_started():
                 raise ServiceNotStarted()
-            return self.control_socket.send_to_worker(
+            self.control_socket.send_to_worker(
                 b'$service',
                 b'$controller',
                 message
             )
+            worker, client, message = self.control_socket.recv_from_worker()
+            assert client == b'$controller'
+            assert worker == b'$service'
+            return message
 
-        def recv(self):
-            # TODO: Add timeout
+        def wait_for_signal(self, signal):
             if not self.is_started():
                 raise ServiceNotStarted()
             worker, client, message = self.control_socket.recv_from_worker()
             assert client == b'$controller'
             assert worker == b'$service'
-            return message
+            assert message == {"$signal": signal}
 
     # Service implementation.
 

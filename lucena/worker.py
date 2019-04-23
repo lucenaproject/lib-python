@@ -70,7 +70,9 @@ class Worker(object):
 
         def stop(self, timeout=None):
             for worker_id, running_worker in self.running_workers.items():
-                # Send stop command, retry 5 times.
+                # TODO: Remove this and try with Poll
+                # TODO: Keep the sequence (REQ1, REP1), (REQ2, REP2), ...
+
                 for _ in range(5):
                     self.send(worker_id, b'$controller', {'$signal': 'stop'})
                     _worker_id, client, message = self.recv()
@@ -84,6 +86,7 @@ class Worker(object):
                     break
             self.running_workers = None
 
+        # TODO: Add resolve() method 
         def send(self, worker_id, client_id, message):
             if not self.is_started():
                 raise WorkerNotStarted()
@@ -117,11 +120,7 @@ class Worker(object):
     def __call__(self, endpoint, identity):
         self.identity = identity
         self._before_start()
-        self.control_socket.connect(endpoint)
-        self.control_socket.send_to_client(
-            b'$controller',
-            {"$signal": "ready"}
-        )
+        self._signal_ready(endpoint)
         while not self.stop_signal:
             self._handle_poll()
         self._before_stop()
@@ -162,6 +161,13 @@ class Worker(object):
         client, message = self.control_socket.recv_from_client()
         response = self.resolve(message)
         self.control_socket.send_to_client(client, response)
+
+    def _signal_ready(self, endpoint):
+        self.control_socket.connect(endpoint)
+        self.control_socket.send_to_client(
+            b'$controller',
+            {"$signal": "ready"}
+        )
 
     @staticmethod
     def handler_default(message):

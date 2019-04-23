@@ -55,8 +55,10 @@ class TestClientService(unittest.TestCase):
                 reply,
                 {"$req": "HELLO", "$rep": None, "$error": "No handler match"}
             )
-        self.service.send({'$req': 'eval', '$attr': 'total_client_requests'})
-        reply = self.service.recv()
+        reply = self.service.resolve({
+            '$req': 'eval',
+            '$attr': 'total_client_requests'
+        })
         self.assertEqual(client_requests, reply.get('$rep'))
         self.service.stop()
 
@@ -67,8 +69,10 @@ class TestClientService(unittest.TestCase):
 
     def test_pending_workers(self):
         self.service.start()
-        self.service.send({'$req': 'eval', '$attr': 'pending_workers'})
-        reply = self.service.recv()
+        reply = self.service.resolve({
+            '$req': 'eval',
+            '$attr': 'pending_workers'
+        })
         self.assertEqual(reply.get('$rep'), False)
         self.service.stop()
 
@@ -95,17 +99,10 @@ class TestServiceController(unittest.TestCase):
         self.assertRaises(ServiceAlreadyStarted, controller.start)
         controller.stop()
 
-    def test_send_to_service_fails_if_not_started(self):
+    def test_resolve_fails_if_not_started(self):
         controller = Service.Controller(worker_factory=Worker)
         self.assertRaises(
             ServiceNotStarted,
-            controller.send,
+            controller.resolve,
             {'$req': 'hello'}
-        )
-
-    def test_recv_from_service_fails_if_not_started(self):
-        controller = Service.Controller(worker_factory=Worker)
-        self.assertRaises(
-            ServiceNotStarted,
-            controller.recv
         )
