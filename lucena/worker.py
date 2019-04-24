@@ -23,9 +23,9 @@ class Worker(object):
 
     class Controller(object):
 
-        def __init__(self, *args, **kwargs):
+        def __init__(self, **kwargs):
             self.context = zmq.Context.instance()
-            self.args = args
+            self.default_timeout = kwargs.get('default_timeout')
             self.kwargs = kwargs
             self.running_workers = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
@@ -44,7 +44,6 @@ class Worker(object):
             self.running_workers = {}
             for i in range(number_of_workers):
                 worker = self.kwargs.get('worker_factory', Worker)(
-                    *self.args,
                     **self.kwargs
                 )
                 identity = '$worker#{}'.format(i).encode('utf8')
@@ -105,10 +104,11 @@ class Worker(object):
 
     # Worker implementation.
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         self.identity = None
         self.control_socket = None
         self.stop_signal = False
+        self.default_timeout = kwargs.get('default_timeout')
         self.poll_handlers = []
         self.message_handlers = []
         self.context = zmq.Context.instance()

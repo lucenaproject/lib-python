@@ -13,8 +13,8 @@ class Service(Worker):
 
     class Controller(Worker.Controller):
 
-        def __init__(self, *args, **kwargs):
-            super(Service.Controller, self).__init__(*args, **kwargs)
+        def __init__(self, **kwargs):
+            super(Service.Controller, self).__init__(**kwargs)
             self.service_thread = None
 
         def is_started(self):
@@ -23,7 +23,7 @@ class Service(Worker):
         def start(self, **kwargs):
             if self.service_thread is not None:
                 raise ServiceAlreadyStarted()
-            service = Service(*self.args, **self.kwargs)
+            service = Service(**self.kwargs)
             self.service_thread = threading.Thread(
                 target=service,
                 daemon=False,
@@ -51,10 +51,10 @@ class Service(Worker):
     # Service implementation.
 
     def __init__(self, service_name=None, worker_factory=None, endpoint=None,
-                 number_of_workers=1):
+                 number_of_workers=1, default_timeout=None):
         # http://zguide.zeromq.org/page:all#Getting-the-Context-Right
         # You should create and use exactly one context in your process.
-        super(Service, self).__init__()
+        super(Service, self).__init__(default_timeout=default_timeout)
         if service_name is None:
             service_name = self.__class__.__name__
         self.service_name = service_name
@@ -121,6 +121,6 @@ def create_service(service_name, worker_factory=None, endpoint=None,
         service_name=service_name,
         worker_factory=worker_factory,
         endpoint=endpoint,
-        number_of_workers=number_of_workers
+        number_of_workers=number_of_workers,
+        default_timeout=None
     )
-
