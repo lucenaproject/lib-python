@@ -14,12 +14,8 @@ class Service(Worker):
     class Controller(Worker.Controller):
 
         def __init__(self, *args, **kwargs):
-            self.context = zmq.Context.instance()
-            self.args = args
-            self.kwargs = kwargs
+            super(Service.Controller, self).__init__(*args, **kwargs)
             self.service_thread = None
-            self.control_socket = Socket(self.context, zmq.ROUTER)
-            self.control_socket.bind(Socket.inproc_unique_endpoint())
 
         def is_started(self):
             return self.service_thread is not None
@@ -116,6 +112,7 @@ class Service(Worker):
     def _handle_worker_controller(self):
         worker_id, client, reply = self.worker_controller.recv()
         self.worker_ready_ids.append(worker_id)
+        # TODO: Verify if client is still waiting the reply (timeout happens)
         self.socket.send_to_client(client, reply)
 
     @property
