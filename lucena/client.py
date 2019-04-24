@@ -12,17 +12,17 @@ class RemoteClient(object):
         self.socket = Socket(zmq.Context.instance(), zmq.REQ)
         self.socket.setsockopt(zmq.LINGER, 0)
         if default_timeout is not None:
+            # TODO: Replace with Poll object.
             self.socket.setsockopt(zmq.RCVTIMEO, default_timeout)
-        # self.socket.setsockopt(zmq.REQ_CORRELATE, 1)
-        # self.socket.setsockopt(zmq.REQ_RELAXED, 1)
 
     def connect(self, endpoint):
         self.socket.connect(endpoint)
 
-    def run(self, message):
-        self.socket.send_to_service(message)
+    def resolve(self, message):
+        self.socket.send_to_service(b'$uuid', message)
         try:
-            return self.socket.recv_from_service()
+            uuid, message = self.socket.recv_from_service()
+            return message
         except zmq.error.Again:
             raise IOTimeout()
 

@@ -55,8 +55,6 @@ class Socket(zmq.Socket):
         super(Socket, self).__init__(context, sock_type, **kwargs)
         if identity is not None:
             self.identity = identity
-        # if sock_type == zmq.REQ:
-        #     self.setsockopt(zmq.REQ_CORRELATE, 1)
 
     def signal(self, status=0):
         assert status < 0x7fffffff
@@ -68,54 +66,62 @@ class Socket(zmq.Socket):
         assert Socket.is_signal(message)
         return struct.unpack('I', message)[0]
 
-    def send_to_client(self, client, message):
+    def send_to_client(self, client, uuid, message):
         self.send_multipart([
             client,
+            Socket.DELIMITER_FRAME,
+            uuid,
             Socket.DELIMITER_FRAME,
             bytes(json.dumps(message).encode('utf-8'))
         ])
 
     def recv_from_client(self):
         frames = self.recv_multipart()
-        if len(frames) == 3:
-            assert len(frames) == 3
-            assert frames[1] == Socket.DELIMITER_FRAME
-            client = frames[0]
-            message = json.loads(frames[2].decode('utf-8'))
-            return client, message
-        elif len(frames) == 4:
-            assert frames[2] == Socket.DELIMITER_FRAME
-            client = frames[0]
-            message = json.loads(frames[3].decode('utf-8'))
-            return client, message
-        else:
-            raise RuntimeError()
+        assert len(frames) == 5
+        assert frames[1] == Socket.DELIMITER_FRAME
+        assert frames[3] == Socket.DELIMITER_FRAME
+        client = frames[0]
+        uuid = frames[2]
+        message = json.loads(frames[4].decode('utf-8'))
+        return client, uuid, message
 
-    def send_to_worker(self, worker, client, message):
+    def send_to_worker(self, worker, client, uuid, message):
         self.send_multipart([
             worker,
             Socket.DELIMITER_FRAME,
             client,
+            Socket.DELIMITER_FRAME,
+            uuid,
             Socket.DELIMITER_FRAME,
             bytes(json.dumps(message).encode('utf-8'))
         ])
 
     def recv_from_worker(self):
         frames = self.recv_multipart()
-        assert len(frames) == 5
+        assert len(frames) == 7
         assert frames[1] == Socket.DELIMITER_FRAME
         assert frames[3] == Socket.DELIMITER_FRAME
+        assert frames[5] == Socket.DELIMITER_FRAME
         worker = frames[0]
         client = frames[2]
-        message = json.loads(frames[4].decode('utf-8'))
-        return worker, client, message
+        uuid = frames[4]
+        message = json.loads(frames[6].decode('utf-8'))
+        return worker, client, uuid, message
 
-    def send_to_service(self, message):
-        self.send(bytes(json.dumps(message).encode('utf-8')))
+    def send_to_service(self, uuid, message):
+        self.send_multipart([
+            uuid,
+            Socket.DELIMITER_FRAME,
+            bytes(json.dumps(message).encode('utf-8'))
+        ])
 
     def recv_from_service(self):
-        data = self.recv()
-        return json.loads(data.decode('utf-8'))
+        frames = self.recv_multipart()
+        assert len(frames) == 3
+        assert frames[1] == Socket.DELIMITER_FRAME
+        uuid = frames[0]
+        message = json.loads(frames[2].decode('utf-8'))
+        return uuid, message
 
 
 class RouteSocket(Socket):

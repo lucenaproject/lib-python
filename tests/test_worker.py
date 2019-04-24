@@ -47,7 +47,7 @@ class TestWorkerController(unittest.TestCase):
 
     def test_worker_controller_start_thread(self):
         controller = Worker.Controller()
-        rv = (b'$worker#0', b'$controller', {"$signal": "ready"})
+        rv = (b'$worker#0', b'$controller', b'$uuid', {"$signal": "ready"})
         with patch.object(controller.control_socket, 'recv_from_worker', return_value=rv):
             with patch.object(threading, 'Thread', return_value=MagicMock()) as m_thread:
                 controller.start()
@@ -66,6 +66,7 @@ class TestWorkerController(unittest.TestCase):
             controller.send,
             b'worker',
             b'client',
+            b'$uuid',
             {'$req': 'hello'}
         )
 

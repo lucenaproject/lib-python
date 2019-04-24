@@ -69,8 +69,8 @@ class Worker(object):
                 # TODO: Remove this and try with Poll
                 # TODO: Keep the sequence (REQ1, REP1), (REQ2, REP2), ...
                 for _ in range(2):
-                    self.send(worker_id, b'$controller', {'$signal': 'stop'})
-                    _worker_id, client, message = self.recv()
+                    self.send(worker_id, b'$controller', b'$uuid', {'$signal': 'stop'})
+                    _worker_id, client, uuid, message = self.recv()
                     if not worker_id == worker_id:
                         continue
                     if not client == b'$controller':
@@ -81,23 +81,23 @@ class Worker(object):
                     break
             self.running_workers = None
 
-        def send(self, worker_id, client_id, message):
+        def send(self, worker_id, client_id, uuid, message):
             if not self.is_started():
                 raise WorkerNotStarted()
             return self.control_socket.send_to_worker(
                 worker_id,
                 client_id,
+                uuid,
                 message
             )
 
         def recv(self, timeout=None):
             if not self.is_started():
                 raise WorkerNotStarted()
-            worker, client, message = self.control_socket.recv_from_worker()
-            return worker, client, message
+            return self.control_socket.recv_from_worker()
 
         def wait_for_signal(self, signal, worker_identity=None):
-            worker, client, message = self.control_socket.recv_from_worker()
+            worker, client, uuid, message = self.control_socket.recv_from_worker()
             if worker_identity is not None:
                 assert worker == worker_identity
             assert client == b'$controller'
@@ -158,14 +158,15 @@ class Worker(object):
                 poll_handler.handler()
 
     def _handle_ctrl_socket(self):
-        client, message = self.control_socket.recv_from_client()
+        client, uuid, message = self.control_socket.recv_from_client()
         response = self.resolve(message)
-        self.control_socket.send_to_client(client, response)
+        self.control_socket.send_to_client(client, uuid, response)
 
     def _signal_ready(self, endpoint):
         self.control_socket.connect(endpoint)
         self.control_socket.send_to_client(
             b'$controller',
+            b'$uuid',
             {"$signal": "ready"}
         )
 

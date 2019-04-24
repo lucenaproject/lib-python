@@ -36,22 +36,16 @@ class Service(Worker):
             self.wait_for_signal('ready', b'$service')
 
         def stop(self, timeout=None):
-            reply = self.resolve({'$signal': 'stop'})
-            assert reply == {'$signal': 'stop', '$rep': 'OK'}
+            response = self.resolve({'$signal': 'stop'})
+            assert response == {'$signal': 'stop', '$rep': 'OK'}
             self.service_thread.join(timeout=timeout)
             self.service_thread = None
 
         def resolve(self, message, timeout=None):
             if not self.is_started():
                 raise ServiceNotStarted()
-            self.control_socket.send_to_worker(
-                b'$service',
-                b'$controller',
-                message
-            )
-            worker, client, message = self.control_socket.recv_from_worker()
-            assert client == b'$controller'
-            assert worker == b'$service'
+            self.send(b'$service', b'$controller', b'$uuid', message)
+            worker, client, uuid, message = self.recv()
             return message
 
     # Service implementation.
@@ -104,16 +98,16 @@ class Service(Worker):
 
     def _handle_socket(self):
         assert len(self.worker_ready_ids) > 0
-        client, request = self.socket.recv_from_client()
+        client, uuid, request = self.socket.recv_from_client()
         worker_name = self.worker_ready_ids.pop(0)
-        self.worker_controller.send(worker_name, client, request)
+        self.worker_controller.send(worker_name, client, uuid, request)
         self.total_client_requests += 1
 
     def _handle_worker_controller(self):
-        worker_id, client, reply = self.worker_controller.recv()
+        worker_id, client, uuid, message = self.worker_controller.recv()
         self.worker_ready_ids.append(worker_id)
         # TODO: Verify if client is still waiting the reply (timeout happens)
-        self.socket.send_to_client(client, reply)
+        self.socket.send_to_client(client, uuid, message)
 
     @property
     def pending_workers(self):

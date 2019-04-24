@@ -42,24 +42,24 @@ class TestClientService(unittest.TestCase):
     def client_task(self, message):
         client = RemoteClient(default_timeout=500)
         client.connect(self.endpoint)
-        reply = client.run(message)
+        response = client.resolve(message)
         client.close()
-        return reply
+        return response
 
     def test_total_client_requests(self):
-        client_requests = 256
+        client_requests = 1
         self.service.start()
         for i in range(client_requests):
-            reply = self.client_task({"$req": "HELLO"})
+            response = self.client_task({"$req": "HELLO"})
             self.assertEqual(
-                reply,
+                response,
                 {"$req": "HELLO", "$rep": None, "$error": "No handler match"}
             )
-        reply = self.service.resolve({
+        response = self.service.resolve({
             '$req': 'eval',
             '$attr': 'total_client_requests'
         })
-        self.assertEqual(client_requests, reply.get('$rep'))
+        self.assertEqual(client_requests, response.get('$rep'))
         self.service.stop()
 
     def test_service_restart(self):
@@ -69,11 +69,11 @@ class TestClientService(unittest.TestCase):
 
     def test_pending_workers(self):
         self.service.start()
-        reply = self.service.resolve({
+        response = self.service.resolve({
             '$req': 'eval',
             '$attr': 'pending_workers'
         })
-        self.assertEqual(reply.get('$rep'), False)
+        self.assertEqual(response.get('$rep'), False)
         self.service.stop()
 
     def test_req_timeout(self):
@@ -87,7 +87,7 @@ class TestServiceController(unittest.TestCase):
 
     def test_service_controller_start_thread(self):
         controller = Service.Controller(worker_factory=Worker)
-        rv = (b'$service', b'$controller', {"$signal": "ready"})
+        rv = (b'$service', b'$controller', b'$uuid', {"$signal": "ready"})
         with patch.object(controller.control_socket, 'recv_from_worker', return_value=rv):
             with patch.object(threading, 'Thread', return_value=MagicMock()) as m_thread:
                 controller.start()
