@@ -27,7 +27,6 @@ class Worker(object):
             self.context = zmq.Context.instance()
             self.args = args
             self.kwargs = kwargs
-            self.poller = zmq.Poller()
             self.running_workers = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
@@ -48,20 +47,17 @@ class Worker(object):
                     *self.args,
                     **self.kwargs
                 )
-                _identity = '$worker#{}'.format(i).encode('utf8')
+                identity = '$worker#{}'.format(i).encode('utf8')
                 thread = threading.Thread(
                     target=worker,
                     daemon=False,
                     kwargs={
                         'endpoint': self.control_socket.last_endpoint,
-                        'identity': _identity
+                        'identity': identity
                     }
                 )
                 thread.start()
-                identity, client, message = self.recv()
-                assert identity == _identity
-                assert client == b'$controller'
-                assert message == {"$signal": "ready"}
+                self.wait_for_signal('ready', identity)
                 self.running_workers[identity] = Worker.RunningWorker(
                     worker,
                     thread
@@ -72,8 +68,7 @@ class Worker(object):
             for worker_id, running_worker in self.running_workers.items():
                 # TODO: Remove this and try with Poll
                 # TODO: Keep the sequence (REQ1, REP1), (REQ2, REP2), ...
-
-                for _ in range(5):
+                for _ in range(2):
                     self.send(worker_id, b'$controller', {'$signal': 'stop'})
                     _worker_id, client, message = self.recv()
                     if not worker_id == worker_id:
@@ -86,7 +81,6 @@ class Worker(object):
                     break
             self.running_workers = None
 
-        # TODO: Add resolve() method 
         def send(self, worker_id, client_id, message):
             if not self.is_started():
                 raise WorkerNotStarted()
@@ -96,12 +90,18 @@ class Worker(object):
                 message
             )
 
-        def recv(self):
-            # TODO: Add timeout
+        def recv(self, timeout=None):
             if not self.is_started():
                 raise WorkerNotStarted()
             worker, client, message = self.control_socket.recv_from_worker()
             return worker, client, message
+
+        def wait_for_signal(self, signal, worker_identity=None):
+            worker, client, message = self.control_socket.recv_from_worker()
+            if worker_identity is not None:
+                assert worker == worker_identity
+            assert client == b'$controller'
+            assert message == {"$signal": signal}
 
     # Worker implementation.
 

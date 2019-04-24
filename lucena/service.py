@@ -11,13 +11,12 @@ from lucena.worker import Worker
 
 class Service(Worker):
 
-    class Controller(object):
+    class Controller(Worker.Controller):
 
         def __init__(self, *args, **kwargs):
             self.context = zmq.Context.instance()
             self.args = args
             self.kwargs = kwargs
-            self.poller = zmq.Poller()
             self.service_thread = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
@@ -25,7 +24,7 @@ class Service(Worker):
         def is_started(self):
             return self.service_thread is not None
 
-        def start(self):
+        def start(self, **kwargs):
             if self.service_thread is not None:
                 raise ServiceAlreadyStarted()
             service = Service(*self.args, **self.kwargs)
@@ -38,7 +37,7 @@ class Service(Worker):
                 }
             )
             self.service_thread.start()
-            self.wait_for_signal('ready')
+            self.wait_for_signal('ready', b'$service')
 
         def stop(self, timeout=None):
             reply = self.resolve({'$signal': 'stop'})
@@ -58,14 +57,6 @@ class Service(Worker):
             assert client == b'$controller'
             assert worker == b'$service'
             return message
-
-        def wait_for_signal(self, signal):
-            if not self.is_started():
-                raise ServiceNotStarted()
-            worker, client, message = self.control_socket.recv_from_worker()
-            assert client == b'$controller'
-            assert worker == b'$service'
-            assert message == {"$signal": signal}
 
     # Service implementation.
 
