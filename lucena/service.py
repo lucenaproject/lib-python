@@ -98,9 +98,14 @@ class Service(Worker):
 
     def _handle_socket(self):
         assert len(self.worker_ready_ids) > 0
-        client, uuid, request = self.socket.recv_from_client()
+        response = self.socket.recv_from_client()
         worker_name = self.worker_ready_ids.pop(0)
-        self.worker_controller.send(worker_name, client, uuid, request)
+        self.worker_controller.send(
+            worker_name,
+            response.client,
+            response.uuid,
+            response.message
+        )
         self.total_client_requests += 1
 
     def _handle_worker_controller(self):

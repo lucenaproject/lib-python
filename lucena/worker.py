@@ -22,7 +22,6 @@ class Worker(object):
     )
 
     class Controller(object):
-
         def __init__(self, **kwargs):
             self.context = zmq.Context.instance()
             self.default_timeout = kwargs.get('default_timeout')
@@ -68,7 +67,12 @@ class Worker(object):
                 # TODO: Remove this and try with Poll
                 # TODO: Keep the sequence (REQ1, REP1), (REQ2, REP2), ...
                 for _ in range(2):
-                    self.send(worker_id, b'$controller', b'$uuid', {'$signal': 'stop'})
+                    self.send(
+                        worker_id,
+                        b'$controller',
+                        b'$uuid',
+                        {'$signal': 'stop'}
+                    )
                     _worker_id, client, uuid, message = self.recv()
                     if not worker_id == worker_id:
                         continue
@@ -158,9 +162,12 @@ class Worker(object):
                 poll_handler.handler()
 
     def _handle_ctrl_socket(self):
-        client, uuid, message = self.control_socket.recv_from_client()
-        response = self.resolve(message)
-        self.control_socket.send_to_client(client, uuid, response)
+        response = self.control_socket.recv_from_client()
+        self.control_socket.send_to_client(
+            response.client,
+            response.uuid,
+            self.resolve(response.message)
+        )
 
     def _signal_ready(self, endpoint):
         self.control_socket.connect(endpoint)

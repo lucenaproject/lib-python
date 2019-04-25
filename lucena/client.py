@@ -21,8 +21,8 @@ class RemoteClient(object):
     def resolve(self, message):
         self.socket.send_to_service(b'$uuid', message)
         try:
-            uuid, message = self.socket.recv_from_service()
-            return message
+            response = self.socket.recv_from_service()
+            return response.message
         except zmq.error.Again:
             raise IOTimeout()
 

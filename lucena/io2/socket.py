@@ -6,6 +6,25 @@ import uuid
 import zmq
 
 
+class Response(object):
+    def __init__(self, message, worker=None, client=None, uuid=None):
+        self.message = message
+        self.worker = worker
+        self.client = client
+        self.uuid = uuid
+
+    # def validate(self, message=None, worker=None, client=None, uuid=None):
+    #     if message and not message == self.message:
+    #         return False
+    #     if worker and not worker == self.worker:
+    #         return False
+    #     if client and not client == self.client:
+    #         return False
+    #     if uuid and not uuid == self.uuid:
+    #         return False
+    #     return True
+
+
 class Socket(zmq.Socket):
     DELIMITER_FRAME = b''
     SIGNAL_READY = 0x7f000001
@@ -20,9 +39,9 @@ class Socket(zmq.Socket):
         """
         http://zguide.zeromq.org/page:all#Unicast-Transports
         The inter-thread transport, inproc, is a connected signaling transport.
-        It is much faster than tcp or ipc. This transport has a specific limitation
-        compared to tcp and ipc: the server must issue a bind before
-        any client issues a connect.
+        It is much faster than tcp or ipc.
+        This transport has a specific limitation compared to tcp and ipc:
+        the server must issue a bind before any client issues a connect.
         """
         endpoint = "inproc://lucena-{}".format(str(uuid.uuid4()))
         return endpoint
@@ -80,10 +99,11 @@ class Socket(zmq.Socket):
         assert len(frames) == 5
         assert frames[1] == Socket.DELIMITER_FRAME
         assert frames[3] == Socket.DELIMITER_FRAME
-        client = frames[0]
-        uuid = frames[2]
-        message = json.loads(frames[4].decode('utf-8'))
-        return client, uuid, message
+        return Response(
+            json.loads(frames[4].decode('utf-8')),
+            client=frames[0],
+            uuid=frames[2]
+        )
 
     def send_to_worker(self, worker, client, uuid, message):
         self.send_multipart([
@@ -119,9 +139,7 @@ class Socket(zmq.Socket):
         frames = self.recv_multipart()
         assert len(frames) == 3
         assert frames[1] == Socket.DELIMITER_FRAME
-        uuid = frames[0]
-        message = json.loads(frames[2].decode('utf-8'))
-        return uuid, message
+        return Response(json.loads(frames[2].decode('utf-8')), uuid=frames[0])
 
 
 class RouteSocket(Socket):
