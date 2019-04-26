@@ -122,11 +122,12 @@ class Socket(zmq.Socket):
         assert frames[1] == Socket.DELIMITER_FRAME
         assert frames[3] == Socket.DELIMITER_FRAME
         assert frames[5] == Socket.DELIMITER_FRAME
-        worker = frames[0]
-        client = frames[2]
-        uuid = frames[4]
-        message = json.loads(frames[6].decode('utf-8'))
-        return worker, client, uuid, message
+        return Response(
+            json.loads(frames[6].decode('utf-8')),
+            worker=frames[0],
+            client=frames[2],
+            uuid=frames[4]
+        )
 
     def send_to_service(self, uuid, message):
         self.send_multipart([
@@ -139,7 +140,10 @@ class Socket(zmq.Socket):
         frames = self.recv_multipart()
         assert len(frames) == 3
         assert frames[1] == Socket.DELIMITER_FRAME
-        return Response(json.loads(frames[2].decode('utf-8')), uuid=frames[0])
+        return Response(
+            json.loads(frames[2].decode('utf-8')),
+            uuid=frames[0]
+        )
 
 
 class RouteSocket(Socket):

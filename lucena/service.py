@@ -45,8 +45,8 @@ class Service(Worker):
             if not self.is_started():
                 raise ServiceNotStarted()
             self.send(b'$service', b'$controller', b'$uuid', message)
-            worker, client, uuid, message = self.recv()
-            return message
+            response = self.recv()
+            return response.message
 
     # Service implementation.
 
@@ -109,10 +109,14 @@ class Service(Worker):
         self.total_client_requests += 1
 
     def _handle_worker_controller(self):
-        worker_id, client, uuid, message = self.worker_controller.recv()
-        self.worker_ready_ids.append(worker_id)
+        response = self.worker_controller.recv()
+        self.worker_ready_ids.append(response.worker)
         # TODO: Verify if client is still waiting the reply (timeout happens)
-        self.socket.send_to_client(client, uuid, message)
+        self.socket.send_to_client(
+            response.client,
+            response.uuid,
+            response.message
+        )
 
     @property
     def pending_workers(self):

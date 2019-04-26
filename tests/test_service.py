@@ -9,6 +9,7 @@ from lucena.client import RemoteClient
 from lucena.exceptions import ServiceAlreadyStarted, ServiceNotStarted, \
     IOTimeout
 from lucena.service import Service, create_service
+from lucena.io2.socket import Response
 from lucena.worker import Worker
 
 
@@ -87,7 +88,7 @@ class TestServiceController(unittest.TestCase):
 
     def test_service_controller_start_thread(self):
         controller = Service.Controller(worker_factory=Worker)
-        rv = (b'$service', b'$controller', b'$uuid', {"$signal": "ready"})
+        rv = Response({"$signal": "ready"}, worker=b'$service', client=b'$controller', uuid=b'$uuid')
         with patch.object(controller.control_socket, 'recv_from_worker', return_value=rv):
             with patch.object(threading, 'Thread', return_value=MagicMock()) as m_thread:
                 controller.start()

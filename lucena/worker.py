@@ -73,12 +73,12 @@ class Worker(object):
                         b'$uuid',
                         {'$signal': 'stop'}
                     )
-                    _worker_id, client, uuid, message = self.recv()
+                    response = self.recv()
                     if not worker_id == worker_id:
                         continue
-                    if not client == b'$controller':
+                    if not response.client == b'$controller':
                         continue
-                    if not message == {'$signal': 'stop', '$rep': 'OK'}:
+                    if not response.message == {'$signal': 'stop', '$rep': 'OK'}:
                         continue
                     running_worker.thread.join(timeout=timeout)
                     break
@@ -99,12 +99,12 @@ class Worker(object):
                 raise WorkerNotStarted()
             return self.control_socket.recv_from_worker()
 
-        def wait_for_signal(self, signal, worker_identity=None):
-            worker, client, uuid, message = self.control_socket.recv_from_worker()
-            if worker_identity is not None:
-                assert worker == worker_identity
-            assert client == b'$controller'
-            assert message == {"$signal": signal}
+        def wait_for_signal(self, signal, worker=None):
+            response = self.control_socket.recv_from_worker()
+            if worker is not None:
+                assert response.worker == worker
+            assert response.client == b'$controller'
+            assert response.message == {"$signal": signal}
 
     # Worker implementation.
 

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
     LookupHandlerError
 from lucena.worker import Worker
+from lucena.io2.socket import Response
 
 
 class TestWorker(unittest.TestCase):
@@ -47,7 +48,12 @@ class TestWorkerController(unittest.TestCase):
 
     def test_worker_controller_start_thread(self):
         controller = Worker.Controller()
-        rv = (b'$worker#0', b'$controller', b'$uuid', {"$signal": "ready"})
+        rv = Response(
+            {"$signal": "ready"},
+            worker=b'$worker#0',
+            client=b'$controller',
+            uuid=b'$uuid'
+        )
         with patch.object(controller.control_socket, 'recv_from_worker', return_value=rv):
             with patch.object(threading, 'Thread', return_value=MagicMock()) as m_thread:
                 controller.start()
