@@ -95,6 +95,7 @@ class Service(Worker):
         super(Service, self)._before_stop()
         self.socket.close()
         self.worker_controller.stop()
+        print("Service Stop")
 
     def _handle_socket(self):
         assert len(self.worker_ready_ids) > 0

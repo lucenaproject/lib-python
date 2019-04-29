@@ -2,6 +2,7 @@
 import collections
 import threading
 import zmq
+from uuid import uuid4
 
 from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
     LookupHandlerError
@@ -29,6 +30,7 @@ class Worker(object):
             self.running_workers = None
             self.control_socket = Socket(self.context, zmq.ROUTER)
             self.control_socket.bind(Socket.inproc_unique_endpoint())
+            self.control_socket.setsockopt(zmq.ROUTER_MANDATORY, 1)
 
         def is_started(self):
             return self.running_workers is not None
@@ -70,7 +72,7 @@ class Worker(object):
                     self.send(
                         worker_id,
                         b'$controller',
-                        b'$uuid',
+                        b'$uuuuuuid',
                         {'$signal': 'stop'}
                     )
                     response = self.recv()
@@ -124,10 +126,16 @@ class Worker(object):
     def __call__(self, endpoint, identity):
         self.identity = identity
         self._before_start()
+        for poll_handler in self.poll_handlers:
+            self.poller.register(
+                poll_handler.socket,
+                poll_handler.flags
+            )
         self._signal_ready(endpoint)
         while not self.stop_signal:
             self._handle_poll()
         self._before_stop()
+        print("EXIT {}".format(self.identity))
 
     def _add_poll_handler(self, socket, flags, handler):
         poll_handler = self.PollHandler(socket, flags, handler)
@@ -143,7 +151,7 @@ class Worker(object):
         )
         self._add_poll_handler(
             self.control_socket,
-            zmq.POLLIN if not self.stop_signal else 0,
+            zmq.POLLIN,
             self._handle_ctrl_socket
         )
 
@@ -151,12 +159,7 @@ class Worker(object):
         self.control_socket.close()
 
     def _handle_poll(self):
-        for poll_handler in self.poll_handlers:
-            self.poller.register(
-                poll_handler.socket,
-                poll_handler.flags
-            )
-        sockets = dict(self.poller.poll(1))
+        sockets = dict(self.poller.poll(10))
         for poll_handler in self.poll_handlers:
             if poll_handler.socket in sockets:
                 poll_handler.handler()
@@ -178,6 +181,10 @@ class Worker(object):
         )
 
     @staticmethod
+    def gen_uuid():
+        return uuid4().bytes
+
+    @staticmethod
     def handler_default(message):
         response = {}
         response.update(message)
@@ -196,6 +203,7 @@ class Worker(object):
         response.update(message)
         response.update({'$rep': 'OK'})
         self.stop_signal = True
+        print("{} - {}".format(self.identity, message))
         return response
 
     def bind_handler(self, message, handler):

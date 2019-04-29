@@ -13,16 +13,16 @@ class Response(object):
         self.client = client
         self.uuid = uuid
 
-    # def validate(self, message=None, worker=None, client=None, uuid=None):
-    #     if message and not message == self.message:
-    #         return False
-    #     if worker and not worker == self.worker:
-    #         return False
-    #     if client and not client == self.client:
-    #         return False
-    #     if uuid and not uuid == self.uuid:
-    #         return False
-    #     return True
+    def validate(self, message=None, worker=None, client=None, uuid=None):
+        if message and not message == self.message:
+            return False
+        if worker and not worker == self.worker:
+            return False
+        if client and not client == self.client:
+            return False
+        if uuid and not uuid == self.uuid:
+            return False
+        return True
 
 
 class Socket(zmq.Socket):
@@ -46,26 +46,26 @@ class Socket(zmq.Socket):
         endpoint = "inproc://lucena-{}".format(str(uuid.uuid4()))
         return endpoint
 
-    @staticmethod
-    def socket_pair(context, hwm=1000):
-        """
-        Pair of connected sockets:
-        socket_0 (bind) <--> socket_1 (connect)
-        """
-        socket_0 = Socket(context, zmq.PAIR)
-        socket_1 = Socket(context, zmq.PAIR)
-        socket_0.set_hwm(hwm)
-        socket_1.set_hwm(hwm)
-        # Close immediately on shutdown.
-        socket_0.setsockopt(zmq.LINGER, 0)
-        socket_1.setsockopt(zmq.LINGER, 0)
-        # inproc is much faster than tcp or ipc but the server must
-        # issue a bind before any client issues a connect.
-        # http://zguide.zeromq.org/page:all#Unicast-Transports
-        endpoint = Socket.inproc_unique_endpoint()
-        socket_0.bind(endpoint)
-        socket_1.connect(endpoint)
-        return socket_0, socket_1
+    # @staticmethod
+    # def socket_pair(context, hwm=1000):
+    #     """
+    #     Pair of connected sockets:
+    #     socket_0 (bind) <--> socket_1 (connect)
+    #     """
+    #     socket_0 = Socket(context, zmq.PAIR)
+    #     socket_1 = Socket(context, zmq.PAIR)
+    #     socket_0.set_hwm(hwm)
+    #     socket_1.set_hwm(hwm)
+    #     # Close immediately on shutdown.
+    #     socket_0.setsockopt(zmq.LINGER, 0)
+    #     socket_1.setsockopt(zmq.LINGER, 0)
+    #     # inproc is much faster than tcp or ipc but the server must
+    #     # issue a bind before any client issues a connect.
+    #     # http://zguide.zeromq.org/page:all#Unicast-Transports
+    #     endpoint = Socket.inproc_unique_endpoint()
+    #     socket_0.bind(endpoint)
+    #     socket_1.connect(endpoint)
+    #     return socket_0, socket_1
 
     def __init__(self, context, sock_type, **kwargs):
         identity = None
@@ -130,11 +130,13 @@ class Socket(zmq.Socket):
         )
 
     def send_to_service(self, uuid, message):
-        self.send_multipart([
+        reply = self.send_multipart([
             uuid,
             Socket.DELIMITER_FRAME,
             bytes(json.dumps(message).encode('utf-8'))
         ])
+        if reply:
+            print('Warning {}'.format(reply))
 
     def recv_from_service(self):
         frames = self.recv_multipart()

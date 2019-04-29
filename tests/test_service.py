@@ -15,15 +15,16 @@ from lucena.worker import Worker
 
 class MyWorker(Worker):
     def __init__(self, *args, **kwargs):
-        super(MyWorker, self).__init__(*args, **kwargs)
+        super(MyWorker, self).__init__(**kwargs)
         self.bind_handler({'$req': 'sleep'}, MyWorker.handler_sleep)
 
     @staticmethod
     def handler_sleep(message):
+        print("Sleeping 1 sec...")
         time.sleep(1)
         response = {}
         response.update(message)
-        response.update({'$rep': 'sleep 1 sec'})
+        response.update({'$rep': 'Sleep 1 sec...'})
         return response
 
 
@@ -41,7 +42,7 @@ class TestClientService(unittest.TestCase):
         )
 
     def client_task(self, message):
-        client = RemoteClient(default_timeout=500)
+        client = RemoteClient(default_timeout=700)
         client.connect(self.endpoint)
         response = client.resolve(message)
         client.close()
