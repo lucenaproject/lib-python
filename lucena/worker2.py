@@ -32,7 +32,7 @@ class Worker(object):
         self.socket = None
         self.message_handlers = []
         self.stop_signal = False
-        self.ctx = zmq.Context()
+        self.context = zmq.Context()
         self.poller = zmq.Poller()
         self.bind_handler({}, self.handler_default)
         self.bind_handler({'$signal': 'stop'}, self.handler_stop)
@@ -43,7 +43,7 @@ class Worker(object):
         if self.socket:
             self.poller.unregister(self.socket)
             self.socket.close()
-        self.socket = self.ctx.socket(zmq.DEALER)
+        self.socket = self.context.socket(zmq.DEALER)
         self.socket.linger = 0
         self.socket.connect(self.broker_endpoint)
         self.poller.register(self.socket, zmq.POLLIN)
@@ -56,20 +56,21 @@ class Worker(object):
         self.liveness = self.HEARTBEAT_LIVENESS
         self.heartbeat_at = time.time() + 1e-3 * self.heartbeat
 
-    def send_to_broker(self, command, option=None, msg=None):
+    def send_to_broker(self, command, option=None, message=None):
         """
         Send message to broker.
         If no msg is provided, creates one internally
         """
-        if msg is None:
-            msg = []
-        elif not isinstance(msg, list):
-            msg = [msg]
-        if option:
-            msg = [option] + msg
-        msg = [b'', MDP.W_WORKER, command] + msg
-        logging.info("sending to broker: %s", msg)
-        self.socket.send_multipart(msg)
+        message_parts = [b'', MDP.W_WORKER, command]
+        if option is not None:
+            message_parts.append(option)
+        if message is None:
+            message = []
+        if not isinstance(message, list):
+            message = [message]
+        message_parts.extend(message)
+        logging.debug("sending to broker: %s", message_parts)
+        self.socket.send_multipart(message_parts)
 
     def recv(self, reply=None):
         """
@@ -81,7 +82,7 @@ class Worker(object):
         if reply is not None:
             assert self.reply_to is not None
             reply = [self.reply_to, b''] + reply
-            self.send_to_broker(MDP.W_REPLY, msg=reply)
+            self.send_to_broker(MDP.W_REPLY, message=reply)
 
         self.expect_reply = True
 
@@ -92,7 +93,7 @@ class Worker(object):
 
             if items:
                 msg = self.socket.recv_multipart()
-                logging.info("received message from broker: %s", msg)
+                logging.debug("received message from broker: %s", msg)
 
                 self.liveness = self.HEARTBEAT_LIVENESS
                 assert len(msg) >= 3
@@ -141,7 +142,7 @@ class Worker(object):
         return None
 
     def destroy(self):
-        self.ctx.destroy(0)
+        self.context.destroy(0)
 
     @staticmethod
     def handler_default(message):

@@ -12,7 +12,7 @@ import lucena.majordomo.MDP as MDP
 class Broker(object):
     """
     Majordomo Protocol broker
-    A minimal implementation of http:#rfc.zeromq.org/spec:7 and spec:8
+    http:#rfc.zeromq.org/spec:7 and spec:8
     """
 
     class Service(object):
@@ -44,26 +44,20 @@ class Broker(object):
 
     # ---------------------------------------------------------------------
 
-    ctx = None  # Our context
-    socket = None  # Socket for clients & workers
-    poller = None  # our Poller
-    heartbeat_at = None  # When to send HEARTBEAT
+    context = None  # Our context
     services = None  # known services
     workers = None  # known workers
     waiting = None  # idle workers
-    verbose = False  # Print activity to stdout
 
     # ---------------------------------------------------------------------
 
-    def __init__(self, verbose=False):
-        """Initialize broker state."""
-        self.verbose = verbose
+    def __init__(self):
         self.services = {}
         self.workers = {}
         self.waiting = []
         self.heartbeat_at = time.time() + 1e-3 * self.HEARTBEAT_INTERVAL
-        self.ctx = zmq.Context()
-        self.socket = self.ctx.socket(zmq.ROUTER)
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.ROUTER)
         self.socket.linger = 0
         self.poller = zmq.Poller()
         self.poller.register(self.socket, zmq.POLLIN)
@@ -81,7 +75,7 @@ class Broker(object):
                 break  # Interrupted
             if items:
                 msg = self.socket.recv_multipart()
-                logging.info("received message: %s", msg)
+                logging.debug("received message: %s", msg)
 
                 sender = msg.pop(0)
                 empty = msg.pop(0)
@@ -94,7 +88,6 @@ class Broker(object):
                     self.process_worker(sender, msg)
                 else:
                     logging.error("invalid message: %s", msg)
-
             self.purge_workers()
             self.send_heartbeats()
 
@@ -104,36 +97,33 @@ class Broker(object):
         """
         while self.workers:
             self.delete_worker(self.workers.values()[0], True)
-        self.ctx.destroy(0)
+        self.context.destroy(0)
 
-    def process_client(self, sender, msg):
+    def process_client(self, sender, message):
         """
         Process a request coming from a client.
         """
-        assert len(msg) >= 2  # Service name + body
-        service = msg.pop(0)
+        assert len(message) >= 2  # Service name + body
+        service = message.pop(0)
         # Set reply return address to client sender
-        msg = [sender, b''] + msg
+        message = [sender, b''] + message
         if service.startswith(self.INTERNAL_SERVICE_PREFIX):
-            self.service_internal(service, msg)
+            self.service_internal(service, message)
         else:
-            self.dispatch(self.require_service(service), msg)
+            self.dispatch(self.require_service(service), message)
 
-    def process_worker(self, sender, msg):
+    def process_worker(self, sender, message):
         """
         Process message sent to us by a worker.
         """
-        assert len(msg) >= 1  # At least, command
-
-        command = msg.pop(0)
-
+        assert len(message) >= 1  # At least, command
+        command = message.pop(0)
         worker_ready = hexlify(sender) in self.workers
-
         worker = self.require_worker(sender)
 
         if MDP.W_READY == command:
-            assert len(msg) >= 1  # At least, a service name
-            service = msg.pop(0)
+            assert len(message) >= 1  # At least, a service name
+            service = message.pop(0)
             # Not first command in session or Reserved service name
             if worker_ready or service.startswith(self.INTERNAL_SERVICE_PREFIX):
                 self.delete_worker(worker, True)
@@ -146,10 +136,10 @@ class Broker(object):
             if worker_ready:
                 # Remove & save client return envelope and insert the
                 # protocol header and service name, then rewrap envelope.
-                client = msg.pop(0)
-                empty = msg.pop(0)  # ?
-                msg = [client, b'', MDP.C_CLIENT, worker.service.name] + msg
-                self.socket.send_multipart(msg)
+                client = message.pop(0)
+                empty = message.pop(0)  # ?
+                message = [client, b'', MDP.C_CLIENT, worker.service.name] + message
+                self.socket.send_multipart(message)
                 self.worker_waiting(worker)
             else:
                 self.delete_worker(worker, True)
@@ -163,7 +153,7 @@ class Broker(object):
         elif MDP.W_DISCONNECT == command:
             self.delete_worker(worker, False)
         else:
-            logging.error("invalid message: %s", msg)
+            logging.error("invalid message: %s", message)
 
     def delete_worker(self, worker, disconnect):
         """
@@ -187,9 +177,7 @@ class Broker(object):
         if worker is None:
             worker = Broker.Worker(identity, address, self.HEARTBEAT_EXPIRY)
             self.workers[identity] = worker
-            if self.verbose:
-                logging.info("registering new worker: %s", identity)
-
+            logging.debug("registering new worker: %s", identity)
         return worker
 
     def require_service(self, name):
@@ -215,11 +203,11 @@ class Broker(object):
         """
         Handle internal service according to 8/MMI specification
         """
-        returncode = "501"
+        return_code = "501"
         if "mmi.service" == service:
             name = msg[-1]
-            returncode = "200" if name in self.services else "404"
-        msg[-1] = returncode
+            return_code = "200" if name in self.services else "404"
+        msg[-1] = return_code
 
         # insert the protocol header and service name after
         # the routing envelope ([client, ''])
@@ -243,7 +231,7 @@ class Broker(object):
         while self.waiting:
             w = self.waiting[0]
             if w.expiry < time.time():
-                logging.info("deleting expired worker: %s", w.identity)
+                logging.debug("deleting expired worker: %s", w.identity)
                 self.delete_worker(w, False)
                 self.waiting.pop(0)
             else:
@@ -259,38 +247,35 @@ class Broker(object):
         worker.expiry = time.time() + 1e-3 * self.HEARTBEAT_EXPIRY
         self.dispatch(worker.service, None)
 
-    def dispatch(self, service, msg):
+    def dispatch(self, service, message):
         """
         Dispatch requests to waiting workers as possible
         """
         assert (service is not None)
-        if msg is not None:  # Queue message if any
-            service.requests.append(msg)
+        if message is not None:  # Queue message if any
+            service.requests.append(message)
         self.purge_workers()
         # If there is client requests and idle workers, dispatch messages
         while service.waiting and service.requests:
-            msg = service.requests.pop(0)
+            message = service.requests.pop(0)
             worker = service.waiting.pop(0)
             self.waiting.remove(worker)
-            self.send_to_worker(worker, MDP.W_REQUEST, None, msg)
+            self.send_to_worker(worker, MDP.W_REQUEST, None, message)
 
-    def send_to_worker(self, worker, command, option, msg=None):
+    def send_to_worker(self, worker, command, option, message=None):
         """
         Send message to worker.
         If message is provided, sends that message.
         """
-        if msg is None:
-            msg = []
-        elif not isinstance(msg, list):
-            msg = [msg]
+        if message is None:
+            message = []
+        elif not isinstance(message, list):
+            message = [message]
 
         # Stack routing and protocol envelopes to start of message
         # and routing envelope
         if option is not None:
-            msg = [option] + msg
-        msg = [worker.address, b'', MDP.W_WORKER, command] + msg
-
-        if self.verbose:
-            logging.info("sending %r to worker: %s", command, msg)
-
-        self.socket.send_multipart(msg)
+            message = [option] + message
+        message = [worker.address, b'', MDP.W_WORKER, command] + message
+        logging.debug("sending %r to worker: %s", command, message)
+        self.socket.send_multipart(message)

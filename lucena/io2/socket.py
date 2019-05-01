@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 import json
 import struct
+import tempfile
 import uuid
 
 import zmq
+
+
+def ipc_unique_endpoint():
+    return "ipc://{}".format(tempfile.NamedTemporaryFile().name)
 
 
 class Response(object):

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import tempfile
 import time
 import threading
 import unittest
@@ -9,12 +8,12 @@ from lucena.client import RemoteClient
 from lucena.exceptions import ServiceAlreadyStarted, ServiceNotStarted, \
     IOTimeout
 from lucena.service import Service, create_service
-from lucena.io2.socket import Response
-from lucena.worker import Worker
+from lucena.io2.socket import ipc_unique_endpoint, Response
+from lucena.worker2 import Worker
 
 
 class MyWorker(Worker):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         super(MyWorker, self).__init__(**kwargs)
         self.bind_handler({'$req': 'sleep'}, MyWorker.handler_sleep)
 
@@ -28,12 +27,11 @@ class MyWorker(Worker):
         return response
 
 
+@unittest.skip('deprecated tests')
 class TestClientService(unittest.TestCase):
     def setUp(self):
         super(TestClientService, self).setUp()
-        self.endpoint = "ipc://{}.ipc".format(
-            tempfile.NamedTemporaryFile().name
-        )
+        self.endpoint = ipc_unique_endpoint()
         self.service = create_service(
             'MyService',
             worker_factory=MyWorker,
@@ -85,6 +83,7 @@ class TestClientService(unittest.TestCase):
         self.service.stop()
 
 
+@unittest.skip('deprecated tests')
 class TestServiceController(unittest.TestCase):
 
     def test_service_controller_start_thread(self):

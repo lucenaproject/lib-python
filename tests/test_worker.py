@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from lucena.exceptions import WorkerAlreadyStarted, WorkerNotStarted, \
     LookupHandlerError
-from lucena.worker import Worker
-from lucena.io2.socket import Response
+from lucena.worker2 import Worker
+from lucena.io2.socket import ipc_unique_endpoint, Response
 
 
 class TestWorker(unittest.TestCase):
@@ -14,7 +14,7 @@ class TestWorker(unittest.TestCase):
     def setUp(self):
         super(TestWorker, self).setUp()
         self.message = {'a': 123, 'b': 'hello'}
-        self.worker = Worker()
+        self.worker = Worker(ipc_unique_endpoint())
         self.basic_handler = lambda: None
 
     def test_lookup_handler(self):
@@ -44,6 +44,7 @@ class TestWorker(unittest.TestCase):
         )
 
 
+@unittest.skip('deprecated tests')
 class TestWorkerController(unittest.TestCase):
 
     def test_worker_controller_start_thread(self):

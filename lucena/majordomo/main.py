@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import time
 from multiprocessing import Process
 
@@ -19,8 +20,7 @@ def worker_main():
 
 def broker_main():
     """create and start new broker"""
-    verbose = True
-    broker = Broker(verbose)
+    broker = Broker()
     broker.bind("tcp://*:5555")
     broker.mediate()
 
@@ -48,7 +48,7 @@ def client_main():
             if reply is None:
                 break
         count += 1
-    print("%i requests/replies processed" % count)
+    logging.info("%i requests/replies processed" % count)
 
 
 def main():
