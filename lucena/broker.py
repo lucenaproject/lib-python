@@ -15,54 +15,33 @@ class Broker(object):
     http:#rfc.zeromq.org/spec:7 and spec:8
     """
 
-    class Service(object):
-        name = None  # Service name
-        requests = None  # List of client requests
-        waiting = None  # List of waiting workers
-
-        def __init__(self, name):
-            self.name = name
-            self.requests = []
-            self.waiting = []
-
-    class Worker(object):
-        identity = None  # hex Identity of worker
-        address = None  # Address to route to
-        service = None  # Owning service, if known
-        expiry = None  # expires at this point, unless heartbeat
-
-        def __init__(self, identity, address, lifetime):
-            self.identity = identity
-            self.address = address
-            self.expiry = time.time() + 1e-3 * lifetime
-
-    # We'd normally pull these from config data
     INTERNAL_SERVICE_PREFIX = b"mmi."
     HEARTBEAT_LIVENESS = 3
     HEARTBEAT_INTERVAL = 2500  # msecs
     HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS
 
-    # ---------------------------------------------------------------------
+    class Service(object):
+        def __init__(self, name):
+            self.name = name
+            self.client_requests = []
+            self.idle_workers = []
 
-    context = None  # Our context
-    services = None  # known services
-    workers = None  # known workers
-    waiting = None  # idle workers
-
-    # ---------------------------------------------------------------------
+    class Worker(object):
+        def __init__(self, identity, address, lifetime):
+            self.identity = identity
+            self.address = address
+            self.expiry = time.time() + 1e-3 * lifetime
 
     def __init__(self):
         self.services = {}
         self.workers = {}
-        self.waiting = []
+        self.idle_workers = []
         self.heartbeat_at = time.time() + 1e-3 * self.HEARTBEAT_INTERVAL
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.ROUTER)
         self.socket.linger = 0
         self.poller = zmq.Poller()
         self.poller.register(self.socket, zmq.POLLIN)
-
-    # ---------------------------------------------------------------------
 
     def mediate(self):
         """
@@ -74,20 +53,20 @@ class Broker(object):
             except KeyboardInterrupt:
                 break  # Interrupted
             if items:
-                msg = self.socket.recv_multipart()
-                logging.debug("received message: %s", msg)
-
-                sender = msg.pop(0)
-                empty = msg.pop(0)
+                message = self.socket.recv_multipart()
+                assert len(message) >= 3
+                logging.debug("received message: %s", message)
+                sender = message.pop(0)
+                empty = message.pop(0)
                 assert empty == b''
-                header = msg.pop(0)
+                header = message.pop(0)
 
                 if MDP.C_CLIENT == header:
-                    self.process_client(sender, msg)
+                    self.process_client(sender, message)
                 elif MDP.W_WORKER == header:
-                    self.process_worker(sender, msg)
+                    self.process_worker(sender, message)
                 else:
-                    logging.error("invalid message: %s", msg)
+                    logging.error("invalid message: %s", message)
             self.purge_workers()
             self.send_heartbeats()
 
@@ -162,7 +141,6 @@ class Broker(object):
         assert worker is not None
         if disconnect:
             self.send_to_worker(worker, MDP.W_DISCONNECT, None, None)
-
         if worker.service is not None:
             worker.service.waiting.remove(worker)
         self.workers.pop(worker.identity)
@@ -199,27 +177,27 @@ class Broker(object):
         self.socket.bind(endpoint)
         logging.info("MDP broker/0.1.1 is active at %s", endpoint)
 
-    def service_internal(self, service, msg):
+    def service_internal(self, service, message):
         """
         Handle internal service according to 8/MMI specification
         """
-        return_code = "501"
-        if "mmi.service" == service:
-            name = msg[-1]
-            return_code = "200" if name in self.services else "404"
-        msg[-1] = return_code
+        return_code = b"501"
+        if b"mmi.service" == service:
+            name = message[-1]
+            return_code = b"200" if name in self.services else b"404"
+        message[-1] = return_code
 
         # insert the protocol header and service name after
         # the routing envelope ([client, ''])
-        msg = msg[:2] + [MDP.C_CLIENT, service] + msg[2:]
-        self.socket.send_multipart(msg)
+        message = message[:2] + [MDP.C_CLIENT, service] + message[2:]
+        self.socket.send_multipart(message)
 
     def send_heartbeats(self):
         """
         Send heartbeats to idle workers if it's time
         """
         if time.time() > self.heartbeat_at:
-            for worker in self.waiting:
+            for worker in self.idle_workers:
                 self.send_to_worker(worker, MDP.W_HEARTBEAT, None, None)
             self.heartbeat_at = time.time() + 1e-3 * self.HEARTBEAT_INTERVAL
 
@@ -228,12 +206,12 @@ class Broker(object):
         Look for & kill expired workers.
         Workers are oldest to most recent, so we stop at the first alive worker.
         """
-        while self.waiting:
-            w = self.waiting[0]
+        while self.idle_workers:
+            w = self.idle_workers[0]
             if w.expiry < time.time():
                 logging.debug("deleting expired worker: %s", w.identity)
                 self.delete_worker(w, False)
-                self.waiting.pop(0)
+                self.idle_workers.pop(0)
             else:
                 break
 
@@ -242,8 +220,8 @@ class Broker(object):
         This worker is now waiting for work.
         """
         # Queue to broker and service waiting lists
-        self.waiting.append(worker)
-        worker.service.waiting.append(worker)
+        self.idle_workers.append(worker)
+        worker.service.idle_workers.append(worker)
         worker.expiry = time.time() + 1e-3 * self.HEARTBEAT_EXPIRY
         self.dispatch(worker.service, None)
 
@@ -253,13 +231,13 @@ class Broker(object):
         """
         assert (service is not None)
         if message is not None:  # Queue message if any
-            service.requests.append(message)
+            service.client_requests.append(message)
         self.purge_workers()
         # If there is client requests and idle workers, dispatch messages
-        while service.waiting and service.requests:
-            message = service.requests.pop(0)
-            worker = service.waiting.pop(0)
-            self.waiting.remove(worker)
+        while service.idle_workers and service.client_requests:
+            message = service.client_requests.pop(0)
+            worker = service.idle_workers.pop(0)
+            self.idle_workers.remove(worker)
             self.send_to_worker(worker, MDP.W_REQUEST, None, message)
 
     def send_to_worker(self, worker, command, option, message=None):

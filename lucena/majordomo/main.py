@@ -31,7 +31,7 @@ def client_main():
     for i in range(requests):
         request = b"Hello world"
         try:
-            client.send(b"$echo", request)
+            client.send(b"mmi.service", request)
         except KeyboardInterrupt:
             print("send interrupted, aborting")
             return
