@@ -118,6 +118,7 @@ class Socket(zmq.Socket):
 
     def recv_from_worker(self):
         frames = self.recv_multipart()
+        print(frames)
         assert len(frames) == 7
         assert frames[1] == Socket.DELIMITER_FRAME
         assert frames[3] == Socket.DELIMITER_FRAME

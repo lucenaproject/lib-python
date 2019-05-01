@@ -142,6 +142,10 @@ class Worker(object):
         self.poll_handlers.append(poll_handler)
 
     def _before_start(self):
+        while self.poll_handlers:
+            poll_handler = self.poll_handlers.pop(0)
+            self.poller.unregister(poll_handler.socket)
+            poll_handler.socket.close()
         self.poll_handlers = []
         self.stop_signal = False
         self.control_socket = Socket(
