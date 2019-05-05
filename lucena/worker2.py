@@ -69,7 +69,7 @@ class Worker(object):
         if not isinstance(message, list):
             message = [message]
         message_parts.extend(message)
-        logging.debug("sending to broker: %s", message_parts)
+        logging.debug("[WORKER] send: %s", message_parts)
         self.socket.send_multipart(message_parts)
 
     def recv(self, reply=None):

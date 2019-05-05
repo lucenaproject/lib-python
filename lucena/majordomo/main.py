@@ -29,18 +29,17 @@ def client_main():
     client = Client("tcp://localhost:5555")
     requests = 10
     for i in range(requests):
-        request = b"Hello world"
         try:
-            client.send(b"mmi.service", request)
+            client.send(b"mmi.service", b"$echo")
         except KeyboardInterrupt:
             print("send interrupted, aborting")
             return
-
     time.sleep(1)
     count = 0
     while count < requests:
         try:
             reply = client.recv()
+            logging.debug('[CLIENT] recv: %s', reply)
         except KeyboardInterrupt:
             break
         else:

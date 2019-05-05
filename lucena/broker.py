@@ -17,8 +17,17 @@ class Broker(object):
 
     INTERNAL_SERVICE_PREFIX = b"mmi."
     HEARTBEAT_LIVENESS = 3
-    HEARTBEAT_INTERVAL = 2500  # msecs
+    HEARTBEAT_INTERVAL = 2500
     HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS
+
+    class Message(object):
+        def __init__(self, sender=None, header=None, payload=None):
+            if payload is None:
+                payload = []
+            assert isinstance(payload, list)
+            self.sender = sender
+            self.header = header
+            self.payload = payload
 
     class Service(object):
         def __init__(self, name):
@@ -43,6 +52,18 @@ class Broker(object):
         self.poller = zmq.Poller()
         self.poller.register(self.socket, zmq.POLLIN)
 
+    def recv(self):
+        frames = self.socket.recv_multipart()
+        logging.debug("[BROKER] recv: %s", frames)
+        assert len(frames) >= 3
+        assert frames[1] == b''
+        message = Broker.Message(
+            sender=frames[0],
+            header=frames[2],
+            payload=frames[3:]
+        )
+        return message
+
     def mediate(self):
         """
         Main broker work happens here
@@ -51,20 +72,13 @@ class Broker(object):
             try:
                 items = self.poller.poll(self.HEARTBEAT_INTERVAL)
             except KeyboardInterrupt:
-                break  # Interrupted
+                break
             if items:
-                message = self.socket.recv_multipart()
-                assert len(message) >= 3
-                logging.debug("received message: %s", message)
-                sender = message.pop(0)
-                empty = message.pop(0)
-                assert empty == b''
-                header = message.pop(0)
-
-                if MDP.C_CLIENT == header:
-                    self.process_client(sender, message)
-                elif MDP.W_WORKER == header:
-                    self.process_worker(sender, message)
+                message = self.recv()
+                if MDP.C_CLIENT == message.header:
+                    self.process_client(message)
+                elif MDP.W_WORKER == message.header:
+                    self.process_worker(message)
                 else:
                     logging.error("invalid message: %s", message)
             self.purge_workers()
@@ -78,47 +92,49 @@ class Broker(object):
             self.delete_worker(self.workers.values()[0], True)
         self.context.destroy(0)
 
-    def process_client(self, sender, message):
+    def process_client(self, message):
         """
         Process a request coming from a client.
         """
-        assert len(message) >= 2  # Service name + body
-        service = message.pop(0)
-        # Set reply return address to client sender
-        message = [sender, b''] + message
+        assert len(message.payload) >= 2
+        service = message.payload[0]
         if service.startswith(self.INTERNAL_SERVICE_PREFIX):
-            self.service_internal(service, message)
+            self.service_internal(
+                service,
+                [message.sender, b''] + message.payload
+            )
         else:
-            self.dispatch(self.require_service(service), message)
+            self.dispatch(
+                self.require_service(service),
+                [message.sender, b''] + message.payload
+            )
 
-    def process_worker(self, sender, message):
+    def process_worker(self, message):
         """
         Process message sent to us by a worker.
         """
-        assert len(message) >= 1  # At least, command
-        command = message.pop(0)
-        worker_ready = hexlify(sender) in self.workers
-        worker = self.require_worker(sender)
+        assert len(message.payload) >= 1
+        command = message.payload[0]
+        worker_ready = hexlify(message.sender) in self.workers
+        worker = self.require_worker(message.sender)
 
         if MDP.W_READY == command:
-            assert len(message) >= 1  # At least, a service name
-            service = message.pop(0)
+            assert len(message.payload) >= 2
+            service = message.payload[1]
             # Not first command in session or Reserved service name
             if worker_ready or service.startswith(self.INTERNAL_SERVICE_PREFIX):
                 self.delete_worker(worker, True)
             else:
-                # Attach worker to service and mark as idle
                 worker.service = self.require_service(service)
                 self.worker_waiting(worker)
 
         elif MDP.W_REPLY == command:
             if worker_ready:
-                # Remove & save client return envelope and insert the
-                # protocol header and service name, then rewrap envelope.
-                client = message.pop(0)
-                empty = message.pop(0)  # ?
-                message = [client, b'', MDP.C_CLIENT, worker.service.name] + message
-                self.socket.send_multipart(message)
+                client = message.payload[1]
+                assert message.payload[2] == b''
+                self.socket.send_multipart(
+                    [client, b'', MDP.C_CLIENT, worker.service.name] + message.payload[3:]
+                )
                 self.worker_waiting(worker)
             else:
                 self.delete_worker(worker, True)
@@ -155,7 +171,7 @@ class Broker(object):
         if worker is None:
             worker = Broker.Worker(identity, address, self.HEARTBEAT_EXPIRY)
             self.workers[identity] = worker
-            logging.debug("registering new worker: %s", identity)
+            logging.debug("[BROKER] registering new worker: %s", identity)
         return worker
 
     def require_service(self, name):
@@ -229,7 +245,7 @@ class Broker(object):
         """
         Dispatch requests to waiting workers as possible
         """
-        assert (service is not None)
+        assert service is not None
         if message is not None:  # Queue message if any
             service.client_requests.append(message)
         self.purge_workers()
@@ -255,5 +271,5 @@ class Broker(object):
         if option is not None:
             message = [option] + message
         message = [worker.address, b'', MDP.W_WORKER, command] + message
-        logging.debug("sending %r to worker: %s", command, message)
+        logging.debug("[BROKER] send: %s", message)
         self.socket.send_multipart(message)

@@ -34,7 +34,7 @@ class Client(object):
         self.client.linger = 0
         self.client.connect(self.broker)
         self.poller.register(self.client, zmq.POLLIN)
-        logging.info("connecting to broker at %s", self.broker)
+        logging.info("[CLIENT] connecting to broker at %s", self.broker)
 
     def send(self, service, request):
         """
@@ -50,7 +50,7 @@ class Client(object):
 
         request = [b'', MDP.C_CLIENT, service] + request
         if self.verbose:
-            logging.warning("send request to '%s' service: ", service)
+            logging.warning("[CLIENT] send request to '%s' service: ", service)
             print(request)
         self.client.send_multipart(request)
 
@@ -67,7 +67,7 @@ class Client(object):
             # if we got a reply, process it
             msg = self.client.recv_multipart()
             if self.verbose:
-                logging.info("received reply:")
+                logging.info("[CLIENT] received reply:")
                 print(msg)
 
             # Don't try to handle errors, just assert noisily
