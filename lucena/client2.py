@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import json
 import logging
 
 import zmq
@@ -36,22 +37,11 @@ class Client(object):
         self.poller.register(self.client, zmq.POLLIN)
         logging.info("[CLIENT] connecting to broker at %s", self.broker)
 
-    def send(self, service, request):
+    def send(self, message):
         """
         Send request to broker
         """
-        if not isinstance(request, list):
-            request = [request]
-
-        # Prefix request with protocol frames
-        # Frame 0: empty (REQ emulation)
-        # Frame 1: "MDPCxy" (six bytes, MDP/Client x.y)
-        # Frame 2: Service name (printable string)
-
-        request = [b'', MDP.C_CLIENT, service] + request
-        if self.verbose:
-            logging.warning("[CLIENT] send request to '%s' service: ", service)
-            print(request)
+        request = [b'', MDP.C_CLIENT, json.dumps(message).encode('utf-8')]
         self.client.send_multipart(request)
 
     def recv(self):
@@ -62,21 +52,13 @@ class Client(object):
             items = self.poller.poll(10000)
         except KeyboardInterrupt:
             return
-
         if items:
-            # if we got a reply, process it
             msg = self.client.recv_multipart()
-            if self.verbose:
-                logging.info("[CLIENT] received reply:")
-                print(msg)
-
-            # Don't try to handle errors, just assert noisily
-            assert len(msg) >= 4
             empty = msg.pop(0)
+            assert empty == b''
             header = msg.pop(0)
             assert MDP.C_CLIENT == header
-            service = msg.pop(0)
-            return msg
+            return json.loads(msg[0].decode('utf-8'))
         else:
             logging.warning("permanent error, abandoning request")
 

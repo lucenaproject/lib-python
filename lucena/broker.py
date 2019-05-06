@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
+import json
 import logging
 import time
 from binascii import hexlify
 
 import zmq
 
-import lucena.majordomo.MDP as MDP
+from lucena.majordomo import MDP
+from lucena.message_handler import MessageDispatcher
 
 
 class Broker(object):
@@ -15,7 +17,7 @@ class Broker(object):
     http:#rfc.zeromq.org/spec:7 and spec:8
     """
 
-    INTERNAL_SERVICE_PREFIX = b"mmi."
+    INTERNAL_SERVICE_PREFIX = "mmi."
     HEARTBEAT_LIVENESS = 3
     HEARTBEAT_INTERVAL = 2500
     HEARTBEAT_EXPIRY = HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS
@@ -45,12 +47,19 @@ class Broker(object):
         self.services = {}
         self.workers = {}
         self.idle_workers = []
-        self.heartbeat_at = time.time() + 1e-3 * self.HEARTBEAT_INTERVAL
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.ROUTER)
-        self.socket.linger = 0
         self.poller = zmq.Poller()
+        self.socket = self.context.socket(zmq.ROUTER)
+        self.message_dispatcher = MessageDispatcher()
+        self.heartbeat_at = time.time() + 1e-3 * self.HEARTBEAT_INTERVAL
+        # Init worker state.
+        self.socket.linger = 0
         self.poller.register(self.socket, zmq.POLLIN)
+        # Init internal handlers.
+        self.message_dispatcher.bind_handler(
+            {'$req': '$service'},
+            self.handler_service
+        )
 
     def recv(self):
         frames = self.socket.recv_multipart()
@@ -96,18 +105,26 @@ class Broker(object):
         """
         Process a request coming from a client.
         """
-        assert len(message.payload) >= 2
-        service = message.payload[0]
-        if service.startswith(self.INTERNAL_SERVICE_PREFIX):
-            self.service_internal(
-                service,
-                [message.sender, b''] + message.payload
-            )
-        else:
-            self.dispatch(
-                self.require_service(service),
-                [message.sender, b''] + message.payload
-            )
+        payload = json.loads(message.payload[0])  # TODO: Mover a self.recv
+        response = self.message_dispatcher.resolve(payload)
+        self.socket.send_multipart([
+            message.sender,
+            b'',
+            MDP.C_CLIENT,
+            json.dumps(response).encode('utf-8')
+        ])
+
+        # service = message.payload[0]
+        # if service.startswith(self.INTERNAL_SERVICE_PREFIX):
+        #     self.service_internal(
+        #         service,
+        #         [message.sender, b''] + message.payload
+        #     )
+        # else:
+        #     self.dispatch(
+        #         self.require_service(service),
+        #         [message.sender, b''] + message.payload
+        #     )
 
     def process_worker(self, message):
         """
@@ -120,7 +137,7 @@ class Broker(object):
 
         if MDP.W_READY == command:
             assert len(message.payload) >= 2
-            service = message.payload[1]
+            service = message.payload[1].decode('utf-8')
             # Not first command in session or Reserved service name
             if worker_ready or service.startswith(self.INTERNAL_SERVICE_PREFIX):
                 self.delete_worker(worker, True)
@@ -273,3 +290,8 @@ class Broker(object):
         message = [worker.address, b'', MDP.W_WORKER, command] + message
         logging.debug("[BROKER] send: %s", message)
         self.socket.send_multipart(message)
+
+    def handler_service(self, message):
+        service = message.get('$param')
+        message.update({"$rep": 200 if service in self.services else 404})
+        return message

@@ -30,7 +30,9 @@ def client_main():
     requests = 10
     for i in range(requests):
         try:
-            client.send(b"mmi.service", b"$echo")
+            message = {'$req': '$service', '$param': '$echo'}
+            logging.debug('[CLIENT] send: %s', message)
+            client.send(message)
         except KeyboardInterrupt:
             print("send interrupted, aborting")
             return

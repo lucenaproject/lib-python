@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 
+from lucena.exceptions import LookupHandlerError
+
 
 class MessageHandler(object):
     """
@@ -55,3 +57,29 @@ class MessageHandler(object):
             return True
         except (AssertionError, KeyError):
             return False
+
+
+class MessageDispatcher(object):
+    def __init__(self):
+        self.message_handlers = []
+
+    def bind_handler(self, message, handler):
+        self.message_handlers.append(MessageHandler(message, handler))
+        self.message_handlers.sort()
+
+    def unbind_handler(self, message):
+        for message_handler in self.message_handlers:
+            if message_handler.message == message:
+                self.message_handlers.remove(message_handler)
+                return
+        raise LookupHandlerError("No handler for {}".format(message))
+
+    def get_handler_for(self, message):
+        for message_handler in self.message_handlers:
+            if message_handler.match_in(message):
+                return message_handler.handler
+        raise LookupHandlerError("No handler for {}".format(message))
+
+    def resolve(self, message):
+        handler = self.get_handler_for(message)
+        return handler(message)
