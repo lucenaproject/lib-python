@@ -175,7 +175,7 @@ class Broker(object):
         if disconnect:
             self.send_to_worker(worker, MDP.W_DISCONNECT, None, None)
         if worker.service is not None:
-            worker.service.waiting.remove(worker)
+            worker.service.idle_workers.remove(worker)
         self.workers.pop(worker.identity)
 
     def require_worker(self, address):
