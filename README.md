@@ -3,10 +3,6 @@
 [![GitHub](https://img.shields.io/github/license/mashape/apistatus.svg)](https://opensource.org/licenses/MIT)
 
 
->
-> At this early stage, the most important thing is to generate inertia.
-> —AF
->
 
 # Lucena Python library
 
